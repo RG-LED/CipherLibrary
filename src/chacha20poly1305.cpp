@@ -119,6 +119,6 @@ BOOL CChacha20Poly1305::VerifyAndDecrypt(UINT8 * out, const UINT8 * in, SIZE_T l
 VOID CChacha20Poly1305::Padding16(UINT64 len)
 {
     static const UINT8 zero[16] = { 0 };
-    m_poly.Update(zero, 16 - (len & 15));
+    m_poly.Update(zero, 15 - ((len + 15) & 15));
 }
 

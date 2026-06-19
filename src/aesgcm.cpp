@@ -216,13 +216,11 @@ BOOL CAesGcm::CheckTag() const
 {
     UINT8 y[NBb];
     m_gHash.Get(y);
+    UINT8 diff = 0;
     for ( INT32 i = 0; i < NBb; i++ )
     {
-        if ( m_tag[i] != (y[i] ^ m_S[i]) )
-        {
-            return FALSE;
-        }
+        diff |= (m_tag[i] ^ y[i] ^ m_S[i]);
     }
-    return TRUE;
+    return (diff == 0);
 }
 

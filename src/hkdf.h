@@ -31,13 +31,12 @@ public:
         Extract(salt, saltlen, ikm, ikmlen);
     }
 
-    VOID DeriveKey(const UINT8 * info, SIZE_T infolen, UINT8 * key, SIZE_T keylen)
+    BOOL DeriveKey(const UINT8 * info, SIZE_T infolen, UINT8 * key, SIZE_T keylen)
     {
-        Expand(info, infolen, key, keylen);
+        return Expand(info, infolen, key, keylen);
     }
 
 private:
-
     VOID Extract(const UINT8 * salt, SIZE_T saltlen, const UINT8 * ikm, SIZE_T ikmlen)
     {
         CHmac<HASH> h;
@@ -54,11 +53,11 @@ private:
         h.Finish(m_prk);
     }
 
-    VOID Expand(const UINT8 * info, SIZE_T infolen, UINT8 * okm, SIZE_T okmlen)
+    BOOL Expand(const UINT8 * info, SIZE_T infolen, UINT8 * okm, SIZE_T okmlen)
     {
         if ( okmlen > 255 * HashSize )
         {
-            return; // too large
+            return FALSE; // too large
         }
 
         UINT8 buf[HashSize];
@@ -67,7 +66,7 @@ private:
         SIZE_T pos = 0;
         UINT8 counter = 1;
 
-        while ( pos < okmlen && counter > 0 )
+        while ( pos < okmlen )
         {
             CHmac<HASH> h;
             h.Initialize(m_prk, HashSize);
@@ -94,6 +93,7 @@ private:
             counter++;
         }
         secure_zero(buf, sizeof(buf));
+        return TRUE;
     }
 
     UINT8 m_prk[HashSize];

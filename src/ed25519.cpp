@@ -397,7 +397,7 @@ VOID ed25519_keygen(const UINT8 seed[32], UINT8 pk[32], UINT8 hash[64])
 // msg     : message
 // msg_len : message length
 // sig     : signature 64 bytes (R || S)
-VOID ed25519_sign(const UINT8 seed[32], const UINT8 pk[32], const UINT8 * msg, UINT32 msg_len, UINT8 sig[64])
+VOID ed25519_sign(const UINT8 seed[32], const UINT8 pk[32], const UINT8 * msg, SIZE_T msg_len, UINT8 sig[64])
 {
     CSha512 sha;
 
@@ -458,7 +458,7 @@ VOID ed25519_sign(const UINT8 seed[32], const UINT8 pk[32], const UINT8 * msg, U
 // msg     : message
 // msg_len : message length
 // sig     : signature 64bytes (R || S)
-BOOL ed25519_verify(const UINT8 pub[32], const UINT8 * msg, UINT32 msg_len, const UINT8 sig[64])
+BOOL ed25519_verify(const UINT8 pub[32], const UINT8 * msg, SIZE_T msg_len, const UINT8 sig[64])
 {
     const UINT8 * R_bytes = &sig[0];
     const UINT8 * S_bytes = &sig[32];

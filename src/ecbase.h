@@ -93,6 +93,14 @@ public:
             z = CField::One;
         }
 
+        VOID cswap(CPoint & other, BOOL swap)
+        {
+            typename CField::BASE_TYPE mask = (CField::BASE_TYPE)(-(INT32)swap);
+            x.CField::cswap(other.x, mask);
+            y.CField::cswap(other.y, mask);
+            z.CField::cswap(other.z, mask);
+        }
+
         VOID FromAffine(const CField & xin, const CField & yin)
         {
             x = xin;
@@ -280,16 +288,11 @@ public:
             R1 = p;
             for ( INT32 i = SCALAR_SIZE * 8 - 1; i >= 0; i-- )
             {
-                if ( k.GetBit(i) )
-                {
-                    CPoint::Add(R0, R0, R1);
-                    CPoint::Double(R1, R1);
-                }
-                else
-                {
-                    CPoint::Add(R1, R0, R1);
-                    CPoint::Double(R0, R0);
-                }
+                BOOL swap = k.GetBit(i);
+                R0.cswap(R1, swap);
+                CPoint::Add(R1, R0, R1);
+                CPoint::Double(R0, R0);
+                R0.cswap(R1, swap);
             }
             out = R0;
         }

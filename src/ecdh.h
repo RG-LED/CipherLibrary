@@ -77,10 +77,10 @@ public:
         {
             return FALSE;
         }
+
         CField x, y;
         x.fromBytesBE(&pub[1]);
         y.fromBytesBE(&pub[SCALAR_SIZE + 1]);
-
         if ( !CPoint::IsOnCurve(x, y) )
         {
             return FALSE;
@@ -88,6 +88,13 @@ public:
 
         CPoint P;
         P.FromAffine(x, y);
+
+        CPoint check;
+        CPoint::ScalarMul(check, P, CScalar::N);
+        if ( !check.IsInfinity() )
+        {
+            return FALSE;
+        }
 
         CPoint R;
         CPoint::ScalarMul(R, P, d);
