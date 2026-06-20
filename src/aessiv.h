@@ -28,7 +28,6 @@ private:
     VOID ClearWork();
     VOID FinishS2V(UINT8 out[NBb], const UINT8 * in, SIZE_T len);
     static VOID Double(UINT8 data[NBb]);
-    static VOID Increment(UINT8 data[NBb]);
     UINT8 m_v[NBb];
     UINT8 m_d[NBb];
     UINT8 m_ctrkey[64];

@@ -169,15 +169,3 @@ VOID CAesSiv::Double(UINT8 data[NBb])
     data[NBb - 1] ^= (carry != 0) ? 0x87 : 0x00;
 }
 
-
-VOID CAesSiv::Increment(UINT8 data[NBb])
-{
-    INT32 carry = 1;
-    for ( INT32 i = NBb - 1; i >= 0; i-- )
-    {
-        carry += data[i];
-        data[i] = (UINT8)carry;
-        carry >>= 8;
-    }
-}
-
