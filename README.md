@@ -4,6 +4,8 @@ Cipher-related toolbox
 - Designed mainly for embedded environment
 - Avoiding dynamic memory allocation such as `malloc` and `new`
 
+If you found any bug or have any request, please let me know.
+
 ## Including...
 
 - AES-CBC
@@ -14,6 +16,7 @@ Cipher-related toolbox
 - AES-GCM
 - AES-GCM-SIV
 - AES-KW/KWP
+- AES-SIV
 - Ascon-128
 - Ascon-128a
 - Ascon-HASH
@@ -40,6 +43,7 @@ Cipher-related toolbox
 - KDF-CMAC
 - KDF-HMAC
 - KDF-KMAC
+- KEM API
 - KMAC-128/256
 - MD5
 - PBKDF2

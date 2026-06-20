@@ -12,19 +12,12 @@
 
 BOOL CAesCmac::SetKeys(const UINT8 key[], SIZE_T keylen)
 {
-
     if ( !CAesBase::SetKeys(key, keylen) )
     {
         return FALSE;
     }
 
-    UINT8 buf[16] = { 0 };
-
-    EncryptBlock(buf);
-    MakeSubkey(m_k1, buf);
-    MakeSubkey(m_k2, m_k1);
-
-    secure_zero(m_mac, sizeof(m_mac));
+    Reset();
 
     return TRUE;
 }
@@ -63,6 +56,19 @@ BOOL CAesCmac::Verify(const UINT8 mac[16])
 {
     Finalize();
     return secure_equal(mac, m_mac, sizeof(m_mac));
+}
+
+
+VOID CAesCmac::Reset()
+{
+    UINT8 buf[16] = { 0 };
+
+    EncryptBlock(buf);
+    MakeSubkey(m_k1, buf);
+    MakeSubkey(m_k2, m_k1);
+
+    m_buflen = 0;
+    secure_zero(m_mac, sizeof(m_mac));
 }
 
 

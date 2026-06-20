@@ -31,7 +31,9 @@ public:
     VOID Finish(UINT8 mac[16]);
     BOOL Verify(const UINT8 mac[16]);
 
-private:
+    VOID Reset();
+
+protected:
     VOID Clear();
     VOID ProcessBuffer();
     VOID Finalize();

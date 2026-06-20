@@ -33,5 +33,5 @@ private:
     VOID AddVector(VOID);
 };
 
-#endif // #if !defined(_AES_H_)
+#endif // #if !defined(_AESCBC_H_)
 
