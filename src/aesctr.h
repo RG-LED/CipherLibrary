@@ -16,10 +16,25 @@
 enum class AesCtrSpec {
     BIG32,
     LITTLE32,
-    BIG128
+    BIG128,
+    LITTLE128,
+    XLITTLE128
 };
 
 /************************************************************/
+
+template<AesCtrSpec C>
+struct ExtraMember {
+};
+
+template<>
+struct ExtraMember<AesCtrSpec::XLITTLE128> {
+    UINT8 m_counter[NBb];
+    UINT8 m_vectorbase[NBb];
+};
+
+/************************************************************/
+
 template<AesCtrSpec C>
 class CAesCtr : public CAesBase
 {
@@ -78,7 +93,19 @@ protected:
     UINT8 m_vector[NBb];
     UINT8 m_stream[NBb];
     SIZE_T m_streamLen;
+    ExtraMember<C> m_ex;
 };
+
+/************************************************************/
+
+template<>
+inline VOID CAesCtr<AesCtrSpec::XLITTLE128>::SetInitialVector(const UINT8 iv[])
+{
+    ClearVector();
+    memcpy(m_ex.m_vectorbase, iv, sizeof(m_ex.m_vectorbase));
+    secure_zero(m_ex.m_counter, sizeof(m_ex.m_counter));
+    memcpy(m_vector, iv, sizeof(m_vector));
+}
 
 #endif // #if !defined(_AESCTR_H_)
 
