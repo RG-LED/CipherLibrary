@@ -21,6 +21,10 @@
 class CPolyvalEx : public CPolyval
 {
 public:
+    ~CPolyvalEx()
+    {
+        secure_zero(m_buf, sizeof(m_buf));
+    }
     VOID Init(const CGf128LE & h);
     VOID Update(const UINT8 * in, SIZE_T len);
     VOID Flush();
@@ -90,7 +94,9 @@ public:
     {
         UINT8 tweak[16];
         MakeTweak(tweak, aad, aadlen, nonce, noncelen);
-        return SealRaw(out, tweak, sizeof(tweak), in, inlen);
+        BOOL ret = SealRaw(out, tweak, sizeof(tweak), in, inlen);
+        secure_zero(tweak, sizeof(tweak));
+        return ret;
     }
 
     BOOL Open(UINT8 * out,
@@ -100,7 +106,9 @@ public:
     {
         UINT8 tweak[16];
         MakeTweak(tweak, aad, aadlen, nonce, noncelen);
-        return OpenRaw(out, tweak, sizeof(tweak), in, inlen);
+        BOOL ret = OpenRaw(out, tweak, sizeof(tweak), in, inlen);
+        secure_zero(tweak, sizeof(tweak));
+        return ret;
     }
 
     BOOL SealRaw(UINT8 * out, const UINT8 tweak[16], SIZE_T twlen, const UINT8 * in, SIZE_T inlen)
@@ -137,6 +145,10 @@ public:
 
         Hash(hash, v, nlen, tweak, twlen);
         Xor(uu, hash);
+
+        secure_zero(hash, sizeof(hash));
+        secure_zero(mm, sizeof(mm));
+        secure_zero(s, sizeof(s));
 
         return TRUE;
     }
@@ -175,6 +187,10 @@ public:
 
         Hash(hash, n, vlen, tweak, twlen);
         Xor(mm, hash);
+
+        secure_zero(hash, sizeof(hash));
+        secure_zero(uu, sizeof(uu));
+        secure_zero(s, sizeof(s));
 
         return TRUE;
     }
