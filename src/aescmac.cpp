@@ -108,8 +108,6 @@ VOID CAesCmac::Finalize()
 
 VOID CAesCmac::MakeSubkey(UINT8 key[16], const UINT8 in[16])
 {
-    BOOL msb = ((in[0] & 0x80) != 0);
-
     // shift one bit left
     UINT32 carry = 0;
     for ( INT32 i = 15; i >= 0; i-- )
@@ -118,10 +116,6 @@ VOID CAesCmac::MakeSubkey(UINT8 key[16], const UINT8 in[16])
         carry = (in[i] >> 7) & 0x01;
     }
 
-    if ( msb )
-    {
-        // xor Rb
-        key[15] ^= 0x87;
-    }
+    key[15] ^= (carry != 0) ? 0x87 : 0x00; // xor Rb
 }
 
