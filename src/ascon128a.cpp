@@ -184,10 +184,16 @@ BOOL CAscon128a::Decrypt(UINT8 * out, const UINT8 * cipher, SIZE_T cphlen, const
     Uint64ToBytes(ptr + 8, last2, second);
 
     // update state
-    m_state[0] &= ((0xffffffffffffffffull >> (first * 8)));  // clear processed bits
-    m_state[0] |= c_last1;                                   // embed ciphertext
-    m_state[1] &= ((0xffffffffffffffffull >> (second * 8))); // clear processed bits
-    m_state[1] |= c_last2;                                   // embed ciphertext
+    UINT64 mask = 0xffffffffffffffffllu;
+    mask >>= (first * 4);   // result of shifting 64bits once may depend on environment
+    mask >>= (first * 4);
+    m_state[0] &= mask;     // clear processed bits
+    m_state[0] |= c_last1;  // embed ciphertext
+    mask = 0xffffffffffffffffllu;
+    mask >>= (second * 4);  // result of shifting 64bits once may depend on environment
+    mask >>= (second * 4);
+    m_state[1] &= mask;     // clear processed bits
+    m_state[1] |= c_last2;  // embed ciphertext
     if ( first < 8 )
     {
         m_state[0] ^= (0x80ull << (56 - (first * 8)));       // set 1 as padding
