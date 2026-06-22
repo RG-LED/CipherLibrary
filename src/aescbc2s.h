@@ -28,8 +28,8 @@ public:
     VOID SetRandomSeed(const UINT8 seed[32], const UINT8 nonce[12]);
     VOID ClearVector(VOID);
 
-    VOID doCipher(const UINT8 in[], UINT8 out[]);     /* FIPS 197  P.15 Figure  5 */
-    VOID invCipher(const UINT8 in[], UINT8 out[]);    /* FIPS 197  P.21 Figure 12 */
+    VOID Encrypt(UINT8 out[], const UINT8 in[]);    /* FIPS 197  P.15 Figure  5 */
+    VOID Decrypt(UINT8 out[], const UINT8 in[]);    /* FIPS 197  P.21 Figure 12 */
 
 private:
     UINT32 m_KeyExpansion[2][60];       /* FIPS 197 P.19 5.2 Key Expansion */

@@ -24,7 +24,6 @@ public:
 
     BOOL SetKeys(const UINT8 keys[], SIZE_T len);
 
-protected:
     VOID EncryptBlock(UINT8 data[]);
     VOID DecryptBlock(UINT8 data[]);
 

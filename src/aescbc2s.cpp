@@ -83,7 +83,7 @@ VOID CAesCbc2s::CombineData(UINT8 x[], const UINT8 x0[], const UINT8 x1[])
 
 /************************************************************/
 /* FIPS 197  P.15 Figure 5 */
-VOID CAesCbc2s::doCipher(const UINT8 in[], UINT8 out[])
+VOID CAesCbc2s::Encrypt(UINT8 out[], const UINT8 in[])
 {
     ShareData(m_Data[0], m_Data[1], in);
 
@@ -110,7 +110,7 @@ VOID CAesCbc2s::doCipher(const UINT8 in[], UINT8 out[])
 
 /************************************************************/
 /* FIPS 197  P.21 Figure 12 */
-VOID CAesCbc2s::invCipher(const UINT8 in[], UINT8 out[])
+VOID CAesCbc2s::Decrypt(UINT8 out[], const UINT8 in[])
 {
     UINT8 nextVector[2][NBb];
 

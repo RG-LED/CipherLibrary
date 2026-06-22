@@ -41,7 +41,7 @@ VOID CAesCbc::ClearVector(VOID)
 
 /************************************************************/
 /* FIPS 197  P.15 Figure 5 */
-VOID CAesCbc::doCipher(const UINT8 in[], UINT8 out[])
+VOID CAesCbc::Encrypt(UINT8 out[], const UINT8 in[])
 {
     memcpy(m_Data, in, NBb);
 
@@ -55,7 +55,7 @@ VOID CAesCbc::doCipher(const UINT8 in[], UINT8 out[])
 
 /************************************************************/
 /* FIPS 197  P.21 Figure 12 */
-VOID CAesCbc::invCipher(const UINT8 in[], UINT8 out[])
+VOID CAesCbc::Decrypt(UINT8 out[], const UINT8 in[])
 {
     INT32 nextVector[NB];
 
