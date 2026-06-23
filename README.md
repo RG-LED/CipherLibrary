@@ -4,7 +4,7 @@ Cipher-related toolbox
 - Designed mainly for embedded environment
 - Avoiding dynamic memory allocation such as `malloc` and `new`
 
-If you found any bug or have any request, please let me know.
+If you found any bug or have any comment or request, please let me know.
 
 ## Including...
 
@@ -17,6 +17,7 @@ If you found any bug or have any request, please let me know.
 - AES-GCM-SIV
 - AES-KW/KWP
 - AES-SIV
+- AES-XTS
 - Ascon-128
 - Ascon-128a
 - Ascon-HASH
@@ -53,6 +54,7 @@ If you found any bug or have any request, please let me know.
 - SHA2-256/384/512
 - SHA3-224/256/384/512
 - SHAKE-128/256
+- SipHash/HalfSipHash
 - X25519
 - X448
 - XChaCha20
