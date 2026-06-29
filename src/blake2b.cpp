@@ -54,8 +54,13 @@ VOID CBlake2b::Clear()
     m_BufLen = 0;
 }
 
-VOID CBlake2b::Initialize(const UINT8 * key, SIZE_T keylen)
+BOOL CBlake2b::Initialize(const UINT8 * key, SIZE_T keylen, SIZE_T outlen)
 {
+    if ( outlen < 1 || outlen > 64 )
+    {
+        return FALSE;
+    }
+
     if ( key == NULL )
     {
         keylen = 0;
@@ -64,7 +69,7 @@ VOID CBlake2b::Initialize(const UINT8 * key, SIZE_T keylen)
     {
         keylen = 64;
     }
-    m_H[0] = B2B_IV0 ^ (0x01010000u | 64 | (keylen << 8));
+    m_H[0] = B2B_IV0 ^ (0x01010000u | (UINT8)outlen | (keylen << 8));
     m_H[1] = B2B_IV1;
     m_H[2] = B2B_IV2;
     m_H[3] = B2B_IV3;
@@ -77,6 +82,7 @@ VOID CBlake2b::Initialize(const UINT8 * key, SIZE_T keylen)
     m_F[0] = 0;
     m_F[1] = 0;
     m_BufLen = 0;
+    m_OutLen = outlen;
     /* embed key block first if key exists */
     if ( keylen > 0 )
     {
@@ -85,6 +91,8 @@ VOID CBlake2b::Initialize(const UINT8 * key, SIZE_T keylen)
         memcpy(m_Buf, key, keylen);
         m_BufLen = BlockSize;
     }
+
+    return TRUE;
 }
 
 
@@ -168,7 +176,7 @@ VOID CBlake2b::Update(const VOID * in, SIZE_T inlen)
     }
 }
 
-VOID CBlake2b::Finish(UINT8 out[64])
+VOID CBlake2b::Finish(UINT8 out[])
 {
     m_T[0] += (UINT32)m_BufLen;
     if ( m_T[0] < m_BufLen )
@@ -182,16 +190,9 @@ VOID CBlake2b::Finish(UINT8 out[64])
     memcpy(block, m_Buf, m_BufLen);
     Compress(block, 1);
 
-    for ( INT32 i = 0; i < 8; i++ )
+    for ( SIZE_T i = 0; i < m_OutLen; i++ )
     {
-        out[i * 8 + 0] = (UINT8)m_H[i];
-        out[i * 8 + 1] = (UINT8)(m_H[i] >> 8);
-        out[i * 8 + 2] = (UINT8)(m_H[i] >> 16);
-        out[i * 8 + 3] = (UINT8)(m_H[i] >> 24);
-        out[i * 8 + 4] = (UINT8)(m_H[i] >> 32);
-        out[i * 8 + 5] = (UINT8)(m_H[i] >> 40);
-        out[i * 8 + 6] = (UINT8)(m_H[i] >> 48);
-        out[i * 8 + 7] = (UINT8)(m_H[i] >> 56);
+        out[i] = (UINT8)(m_H[i / 8] >> ((i % 8) * 8));
     }
 }
 

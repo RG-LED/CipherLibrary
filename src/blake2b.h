@@ -23,9 +23,9 @@ public:
     CBlake2b();
     ~CBlake2b();
 
-    VOID Initialize(const UINT8 * key = NULL, SIZE_T keylen = 0);
+    BOOL Initialize(const UINT8 * key = NULL, SIZE_T keylen = 0, SIZE_T outlen = 64);
     VOID Update(const VOID * in, SIZE_T inlen);
-    VOID Finish(UINT8 out[64]);
+    VOID Finish(UINT8 out[]);
 
 private:
     VOID Compress(const UINT8 block[128], INT32 is_last);
@@ -35,6 +35,7 @@ private:
     UINT64 m_F[2];
     UINT8  m_Buf[BlockSize];
     SIZE_T m_BufLen;
+    SIZE_T m_OutLen;
     static const UINT8 m_SIGMA[12][16];
 };
 

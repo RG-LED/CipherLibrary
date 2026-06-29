@@ -18,6 +18,7 @@ If you found any bug or have any comment or request, please let me know.
 - AES-KW/KWP
 - AES-SIV
 - AES-XTS
+- Argon2id
 - Ascon-128
 - Ascon-128a
 - Ascon-HASH

@@ -134,7 +134,7 @@ private:
     {
         UINT64 n = 0;
 
-        for ( INT32 i = len - 1; i >= 0; i-- )
+        for ( INT32 i = (INT32)len - 1; i >= 0; i-- )
         {
             n <<= 8;
             n |= b[i];
