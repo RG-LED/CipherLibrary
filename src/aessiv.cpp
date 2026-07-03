@@ -65,6 +65,7 @@ VOID CAesSiv::AddAad(const UINT8 * aad, SIZE_T len)
     {
         m_d[i] ^= s[i];
     }
+    secure_zero(s, sizeof(s));
 }
 
 
@@ -87,6 +88,9 @@ VOID CAesSiv::Seal(UINT8 * out, SIZE_T & outlen, const UINT8 * in, SIZE_T inlen)
     aesctr.SetKeys(m_ctrkey, m_keylen);
     aesctr.SetInitialVector(q);
     aesctr.Crypt(out, in, inlen);
+
+    secure_zero(v, sizeof(v));
+    secure_zero(q, sizeof(q));
 }
 
 
@@ -118,13 +122,15 @@ BOOL CAesSiv::Open(UINT8 * out, SIZE_T & outlen, const UINT8 * in, SIZE_T inlen)
 
     FinishS2V(t, out, outlen);
 
-    if ( !secure_equal(t, v, sizeof(t)) )
+    BOOL eq = secure_equal(t, v, sizeof(t));
+    secure_zero(v, sizeof(v));
+    secure_zero(t, sizeof(t));
+    if ( !eq )
     {
         secure_zero(out, outlen);
-        return FALSE;
     }
 
-    return TRUE;
+    return eq;
 }
 
 
@@ -154,6 +160,7 @@ VOID CAesSiv::FinishS2V(UINT8 out[NBb], const UINT8 * in, SIZE_T len)
     }
     Update(t, sizeof(t));
     Finish(out);
+    secure_zero(t, sizeof(t));
 }
 
 

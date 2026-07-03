@@ -65,6 +65,7 @@ VOID CFe448::ConditionalSubP()
     {
         m_Limbs[i] = (m_Limbs[i] & ~mask) | (diff[i] & mask);
     }
+    secure_zero(diff, sizeof(diff));
 }
 
 VOID CFe448::Add(CFe448 & out, const CFe448 & n, const CFe448 & m)
@@ -85,6 +86,7 @@ VOID CFe448::Mul(CFe448 & out, const CFe448 & n, const CFe448 & m)
     FOLD_BUF buf;
     CFeBigInt512::Mul(buf, n, m);
     ModP(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFe448::Neg(CFe448 & out, const CFe448 & n)
@@ -170,6 +172,7 @@ VOID CFe448::ModP(CFe448 & out, const CFe448 & a)
 
     Expand(buf, a);
     ModP(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFe448::ModP(CFe448 & out, FOLD_BUF & in)
@@ -249,6 +252,8 @@ Extract(out, in);
 
     out.ConditionalSubP();
     out.ConditionalSubP();
+
+    secure_zero(buf, sizeof(buf));
 #endif
 }
 
@@ -328,6 +333,8 @@ VOID CScalarL512::ConditionalSubL()
     {
         m_Limbs[i] = (m_Limbs[i] & ~mask) | (diff[i] & mask);
     }
+
+    secure_zero(diff, sizeof(diff));
 }
 
 // T(2n) -> REDC: out = T * R^{-1} mod N
@@ -399,6 +406,9 @@ Extract(out, buf);
     // 8) normalize r within [0, L) (subtract L once or twice)
     out.ConditionalSubL();
     out.ConditionalSubL();
+
+    secure_zero(q2, sizeof(q2));
+    secure_zero(q3L, sizeof(q3L));
 #endif
 }
 
@@ -408,6 +418,7 @@ VOID CScalarL512::Mul(CScalarL512 & out, const CScalarL512 & a, const CScalarL51
     FOLD_BUF t;
     CFeBigInt512::Mul(t, a, b);
     ModL(out, t);
+    secure_zero(t, sizeof(t));
 }
 
 // ModL: out = a mod N
@@ -416,6 +427,7 @@ VOID CScalarL512::ModL(CScalarL512 & out, const CScalarL512 & a)
     FOLD_BUF t;
     Expand(t, a);
     ModL(out, t);
+    secure_zero(t, sizeof(t));
 }
 
 // x += y (mod N)
@@ -463,11 +475,11 @@ ModL(*this, buf);
     secure_zero(m_Limbs, sizeof(m_Limbs));
 
     INT32 idx = 28;
+    FOLD_BUF T;
+
     while ( idx >= 0 )
     {
         INT32 take = (idx % 13) + 1;
-
-        FOLD_BUF T;
 
         secure_zero(T, sizeof(T));
         for (INT32 i = 0; i < 14; i++)
@@ -502,6 +514,9 @@ ModL(*this, buf);
     }
 
     ConditionalSubL();
+
+    secure_zero(x, sizeof(x));
+    secure_zero(T, sizeof(T));
 #endif
 }
 

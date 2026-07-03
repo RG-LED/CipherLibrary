@@ -304,6 +304,7 @@ static BOOL decode_point(Point25519 & out, const UINT8 enc[32])
 
     CFe25519 y;
     y.fromBytesLE(yb);
+    secure_zero(yb, sizeof(yb));
     if ( y >= CFe25519::P )
     {
         return FALSE; // refuse unnormalized (y>=p)

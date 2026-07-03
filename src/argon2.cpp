@@ -159,6 +159,8 @@ VOID CArgon2::Hash(UINT8 tag[], UINT32 taglen,
         Hhash(Memory(l, 1), BlockSize, h0, sizeof(h0));
     }
 
+    secure_zero(h0, sizeof(h0));
+
     UINT8 zero[1024];
 
     secure_zero(zero, sizeof(zero));
@@ -313,31 +315,33 @@ VOID CArgon2::Hhash(UINT8 out[], UINT32 len, const UINT8 in[], UINT32 inlen)
     if ( len <= 64 )
     {
         memcpy(out, v, len);
-        return;
     }
-
-    UINT32 r = (len + 31) / 32 - 2;
-
-    memcpy(out, v, 32);
-    len -= 32;
-    out += 32;
-
-    for ( UINT32 i = 1; i < r; i++ )
+    else
     {
-        blake.Initialize();
-        blake.Update(v, sizeof(v));
-        blake.Finish(v);
+        UINT32 r = (len + 31) / 32 - 2;
+
         memcpy(out, v, 32);
         len -= 32;
         out += 32;
+
+        for ( UINT32 i = 1; i < r; i++ )
+        {
+            blake.Initialize();
+            blake.Update(v, sizeof(v));
+            blake.Finish(v);
+            memcpy(out, v, 32);
+            len -= 32;
+            out += 32;
+        }
+        if ( len > 0 )
+        {
+            blake.Initialize(NULL, 0, len);
+            blake.Update(v, sizeof(v));
+            blake.Finish(v);
+            memcpy(out, v, len);
+        }
     }
-    if ( len > 0 )
-    {
-        blake.Initialize(NULL, 0, len);
-        blake.Update(v, sizeof(v));
-        blake.Finish(v);
-        memcpy(out, v, len);
-    }
+    secure_zero(v, sizeof(v));
 }
 
 VOID CArgon2::CompressionG(UINT8 out[1024], const UINT8 in1[1024], const UINT8 in2[1024], BOOL xorflag)
@@ -374,6 +378,11 @@ VOID CArgon2::CompressionG(UINT8 out[1024], const UINT8 in1[1024], const UINT8 i
     {
         Xor1024(out, z, r);
     }
+    secure_zero(r, sizeof(r));
+    secure_zero(q, sizeof(q));
+    secure_zero(z, sizeof(z));
+    secure_zero(b1, sizeof(b1));
+    secure_zero(b2, sizeof(b2));
 }
 
 #define ROTR64(x, n)    (((x) >> (n)) | ((x) << (64u - (n))))

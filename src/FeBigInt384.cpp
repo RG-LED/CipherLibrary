@@ -216,6 +216,7 @@ VOID CFeBigInt384::Mul(FOLD_BUF & out, const CFeBigInt384 & a, const CFeBigInt38
     FOLD_BUF buf;
     Expand(buf, a);
     Mul(out, buf, b);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt384::Mul(FOLD_BUF & buf, const FOLD_BUF & a, const CFeBigInt384 & b)
@@ -344,6 +345,7 @@ VOID CFeBigInt384::Mod(CFeBigInt384 & out, const CFeBigInt384 & a, const CFeBigI
     Expand(buf, a);
     Mod(buf, b);
     Extract(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt384::Mod(FOLD_BUF & buf, const CFeBigInt384 & a)
@@ -454,6 +456,7 @@ VOID CFeBigInt384::Mod(FOLD_BUF & buf, const CFeBigInt384 & a)
             BI384_SHIFT_RIGHT_CARRY(c);
         }
     }
+    secure_zero(buf2, sizeof(buf2));
 }
 
 #if 0

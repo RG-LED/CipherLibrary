@@ -75,6 +75,7 @@ VOID CPoly1305::CPolyKey::Mul(CPolyKey & out, const CPolyKey & n, const CPolyKey
     FOLD_BUF buf;
     CFeBigInt256::Mul(buf, n, m);
     Extract(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 

@@ -61,5 +61,7 @@ VOID CHmacSha256::Finish(UINT8 * hash)
 
     m_oSha.Update(digest, sizeof(digest));
     m_oSha.Finish(hash);
+
+    secure_zero(digest, sizeof(digest));
 }
 

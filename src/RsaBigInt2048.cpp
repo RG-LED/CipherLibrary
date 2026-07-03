@@ -39,6 +39,7 @@ VOID CRsaBigInt2048::ConditionalSub(CRsaBigInt2048 & out, const CRsaBigInt2048 &
     {
         out.m_Limbs[i] = (out.m_Limbs[i] & ~mask) | (diff[i] & mask);
     }
+    secure_zero(diff, sizeof(diff));
 }
 
 // ---- generate R^2 mod N ----
@@ -49,6 +50,7 @@ VOID CRsaBigInt2048::CalcR2(CRsaBigInt2048 & R2, const CRsaBigInt2048 & N, INT32
     buf[k * 2] = 1;  // 2^(32*128) = 2^4096
     CFeBigInt2048::Mod(buf, N);
     Extract(R2, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 // ---- prepare context ----

@@ -80,4 +80,3 @@ VOID CAsconBase::Permutation(INT32 rounds)
     }
 }
 
-

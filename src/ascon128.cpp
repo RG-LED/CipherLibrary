@@ -133,6 +133,7 @@ BOOL CAscon128::Decrypt(UINT8 * out, const UINT8 * cipher, SIZE_T cphlen, const 
     {
         diff |= tag[i] ^ computed_tag[i];
     }
+    secure_zero(computed_tag, sizeof(computed_tag));
     if ( diff == 0 )
     {
         return TRUE;  // verification succeeded

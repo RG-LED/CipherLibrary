@@ -306,7 +306,8 @@ VOID CAesBase::ShiftRows()
     {
         cw[i] = cb[m_ShiftTable[i]];
     }
-    memcpy(m_pData, cw, sizeof(data));
+    memcpy(m_pData, data, sizeof(data));
+    secure_zero(data, sizeof(data));
 }
 
 /************************************************************/
@@ -321,7 +322,8 @@ VOID CAesBase::invShiftRows()
     {
         cw[m_ShiftTable[i]] = cb[i];
     }
-    memcpy(cb, cw, sizeof(data));
+    memcpy(m_pData, data, sizeof(data));
+    secure_zero(data, sizeof(data));
 }
 
 /************************************************************/

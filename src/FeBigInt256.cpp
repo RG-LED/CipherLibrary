@@ -216,6 +216,7 @@ VOID CFeBigInt256::Mul(FOLD_BUF & out, const CFeBigInt256 & a, const CFeBigInt25
     FOLD_BUF buf;
     Expand(buf, a);
     Mul(out, buf, b);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt256::Mul(FOLD_BUF & buf, const FOLD_BUF & a, const CFeBigInt256 & b)
@@ -344,6 +345,7 @@ VOID CFeBigInt256::Mod(CFeBigInt256 & out, const CFeBigInt256 & a, const CFeBigI
     Expand(buf, a);
     Mod(buf, b);
     Extract(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt256::Mod(FOLD_BUF & buf, const CFeBigInt256 & a)
@@ -443,6 +445,8 @@ VOID CFeBigInt256::Mod(FOLD_BUF & buf, const CFeBigInt256 & a)
             msi_rest++;
         }
     }
+
+    secure_zero(buf2, sizeof(buf2));
 
     while ( GreaterEqual(buf, a) )
     {

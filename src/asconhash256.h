@@ -11,10 +11,12 @@
 #define _ASCONHASH256_H_
 
 #include "asconlebase.h"
+#include "secure.h"
 
 class CAsconHash256 : public CAsconLeBase
 {
 public:
+    ~CAsconHash256() { secure_zero(m_buf, sizeof(m_buf)); }
     VOID Initialize();
     VOID Update(const UINT8 * data, SIZE_T len);
     VOID Finish(UINT8 hash[32]);

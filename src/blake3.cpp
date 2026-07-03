@@ -114,6 +114,9 @@ VOID CBlake3::Compress(UINT32 out[16], const UINT32 cv[8], const UINT8 block[64]
         out[i + 8] = v[i + 8] ^ cv[i]; // this line first in case 'out' and 'cv' are overlapped
         out[i] = v[i] ^ v[i + 8];
     }
+
+    secure_zero(m, sizeof(m));
+    secure_zero(v, sizeof(v));
 }
 
 
@@ -141,6 +144,9 @@ VOID CBlake3::ProcessChunk()
     }
     // push cv (32 bytes) into stack
     PushStack(cv, m_counter);
+
+    secure_zero(cv, sizeof(cv));
+    secure_zero(cvout, sizeof(cvout));
 }
 
 
@@ -167,6 +173,9 @@ VOID CBlake3::PushStack(const UINT32 cv[8], UINT64 chunk_idx)
 
     // store proper depth of stack for next joining
     memcpy(m_stack[i], current_cv, 32);
+
+    secure_zero(current_cv, sizeof(current_cv));
+    secure_zero(cvout, sizeof(cvout));
 }
 
 
@@ -286,6 +295,9 @@ VOID CBlake3::Finish()
     memcpy(m_outBuf, cvout, sizeof(m_outBuf));
     m_outBufLen = 64;
     m_counter = 1;
+
+    secure_zero(cv, sizeof(cv));
+    secure_zero(cvout, sizeof(cvout));
 }
 
 

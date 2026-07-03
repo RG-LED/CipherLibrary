@@ -118,6 +118,7 @@ VOID CFe25519::ModP(CFe25519 & out, const CFe25519 & a)
 
     Expand(buf, a);
     ModP(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFe25519::ModP(CFe25519 & out, FOLD_BUF & buf)
@@ -212,7 +213,6 @@ VOID CScalarL25519::Add(CScalarL25519 & out, const CScalarL25519 & a, const CSca
     CScalarL25519 t;
     CFeBigInt256::Add(t, a, b);
     ModL(out, t);
-    secure_zero(&t, sizeof(t));
 }
 
 VOID CScalarL25519::Mul(CScalarL25519 & out, const CScalarL25519 & a, const CScalarL25519 & b)
@@ -276,7 +276,6 @@ VOID CScalarL25519::ModL(FOLD_BUF & buf)
     CScalarL25519 s = Zero;
     s.cmux(L, ge);
     Sub(buf, s);
-    secure_zero(&s, sizeof(s));
 }
 
 VOID CScalarL25519::FoldL(FOLD_BUF & buf)

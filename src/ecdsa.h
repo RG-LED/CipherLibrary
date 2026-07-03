@@ -257,6 +257,10 @@ private:
             hmac.Update(V, sizeof(V));
             hmac.Finish(V);
         }
+
+        secure_zero(K, sizeof(K));
+        secure_zero(V, sizeof(V));
+        secure_zero(seed, sizeof(seed));
     }
 };
 

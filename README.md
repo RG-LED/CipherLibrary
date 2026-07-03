@@ -39,6 +39,7 @@ If you found any bug or have any comment or request, please let me know.
 - ECDSA
 - Ed25519
 - Ed448
+- HCTR2
 - HKDF
 - HMAC
 - HMAC-SHA256

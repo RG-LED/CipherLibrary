@@ -8,6 +8,7 @@
 /* ========================================================================== */
 
 #include "xchacha20.h"
+#include "secure.h"
 
 #if SUPPORT_RESEED
 VOID CXChacha20::Initialize(const UINT8 seed32[32], const UINT8 nonce24[24], UINT32 counter, UINT64 reseed_interval_blocks)
@@ -44,5 +45,6 @@ VOID CXChacha20::Initialize(const UINT8 seed32[32], const UINT8 nonce24[24], UIN
     m_BlocksOut = 0;
     m_ReseedIntervalBlocks = reseed_interval_blocks;
 #endif
+    secure_zero(w, sizeof(w));
 }
 

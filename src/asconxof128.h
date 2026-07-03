@@ -11,10 +11,15 @@
 #define _ASCONXOF128_H_
 
 #include "asconlebase.h"
+#include "secure.h"
 
 class CAsconXof128 : public CAsconLeBase
 {
 public:
+    ~CAsconXof128()
+    {
+        secure_zero(m_buf, sizeof(m_buf));
+    }
     VOID Initialize();
     VOID Update(const UINT8 * data, SIZE_T len);
     VOID Finish();

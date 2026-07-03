@@ -130,6 +130,7 @@ VOID CSha512Base::Finish()
     }
 
     Update(length, 16);
+    secure_zero(length, sizeof(length));
 }
 
 
@@ -210,6 +211,7 @@ VOID CSha512Base::CalculateHash(const UINT8 data[128])
         w[i] = sigma1(w[i - 2]) + w[i - 7] + sigma0(w[i - 15]) + w[i - 16];
     }
     UpdateHash(w);
+    secure_zero(w, sizeof(w));
 }
 
 

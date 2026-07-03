@@ -50,4 +50,3 @@ VOID CAsconXof::Squeeze(UINT8 * out, SIZE_T len)
     }
 }
 
-

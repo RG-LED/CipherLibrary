@@ -88,6 +88,8 @@ VOID CAesGcmSiv::MakeKeyPart(UINT8 out[8], const UINT8 nonce[12], INT32 count)
     memcpy(buf + 4, nonce, 12);
     EncryptBlock(buf);
     memcpy(out, buf, 8);
+
+    secure_zero(buf, sizeof(buf));
 }
 
 
@@ -112,6 +114,8 @@ VOID CAesGcmSiv::Encrypt(UINT8 * out, const UINT8 * in, SIZE_T len, UINT8 tag[16
     SetInitialVector(siv);
 
     Crypt(out, in, len);
+
+    secure_zero(siv, sizeof(siv));
 }
 
 
@@ -137,12 +141,13 @@ BOOL CAesGcmSiv::Decrypt(UINT8 * out, const UINT8 * in, SIZE_T len, const UINT8 
     siv[15] &= 0x7f;
     EncryptBlock(siv);
 
-    if ( !secure_equal(tag, siv, sizeof(siv)) )
+    BOOL eq = secure_equal(tag, siv, sizeof(siv));
+    secure_zero(siv, sizeof(siv));
+    if ( !eq )
     {
         secure_zero(out, len);
-        return FALSE;
     }
-    return TRUE;
+    return eq;
 }
 
 

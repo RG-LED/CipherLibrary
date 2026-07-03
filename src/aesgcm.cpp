@@ -39,6 +39,7 @@ BOOL CAesGcm::SetKeys(const UINT8 keys[], SIZE_T len)
         UINT8 h[16] = { 0 };
         EncryptBlock(h);
         m_H.LoadBE(h);
+        secure_zero(h, sizeof(h));
     }
     return ret;
 }
@@ -85,6 +86,8 @@ VOID CAesGcm::Init(const UINT8 iv[], SIZE_T ivLen, const UINT8 * aad, SIZE_T aad
     }
 
     SetInitialVector(vec);
+
+    secure_zero(vec, sizeof(vec));
 
     memcpy(m_S, m_vector, sizeof(m_S));
     EncryptBlock(m_S);
@@ -200,6 +203,7 @@ VOID CAesGcm::GetTag(UINT8 tag[16]) const
     {
         tag[i] = y[i] ^ m_S[i];
     }
+    secure_zero(y, sizeof(y));
 }
 
 
@@ -221,6 +225,7 @@ BOOL CAesGcm::CheckTag() const
     {
         diff |= (m_tag[i] ^ y[i] ^ m_S[i]);
     }
+    secure_zero(y, sizeof(y));
     return (diff == 0);
 }
 

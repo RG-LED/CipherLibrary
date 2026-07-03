@@ -8,6 +8,7 @@
 /* ========================================================================== */
 
 #include "cshakebase.h"
+#include "secure.h"
 
 
 VOID CcShakeBase::Initialize(const UINT8 * func, SIZE_T funclen, const UINT8 * custom, SIZE_T customlen)
@@ -92,6 +93,8 @@ SIZE_T CcShakeBase::EncodeInteger(SIZE_T len)
     SIZE_T nbytes = sizeof(enc) - i;
     enc[i] = (UINT8)(nbytes - 1);
     Absorb(enc + i, nbytes);
+
+    secure_zero(enc, sizeof(enc));
 
     return nbytes;
 }

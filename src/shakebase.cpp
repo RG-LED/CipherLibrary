@@ -60,9 +60,11 @@ VOID CShakeBase::Keccakf1600()
          8, 21, 24,  4, 15, 23, 19, 13,
         12,  2, 20, 14, 22,  9,  6,  1
     };
+
+    UINT64 bc[5];
+
     for ( INT32 round = 0; round < 24; round++ )
     {
-        UINT64 bc[5];
         for ( INT32 i = 0; i < 5; i++ )
         {
             bc[i] = m_A[i] ^ m_A[i + 5] ^ m_A[i + 10] ^ m_A[i + 15] ^ m_A[i + 20];
@@ -98,6 +100,8 @@ VOID CShakeBase::Keccakf1600()
         }
         m_A[0] ^= KECCAKF_ROUND_CONST[round];
     }
+
+    secure_zero(bc, sizeof(bc));
 }
 
 /* ======== SHAKE256 context & API ======== */

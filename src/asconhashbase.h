@@ -11,10 +11,12 @@
 #define _ASCONHASHBASE_H_
 
 #include "asconbebase.h"
+#include "secure.h"
 
 class CAsconHashBase : public CAsconBeBase
 {
 public:
+    ~CAsconHashBase() { secure_zero(m_buf, sizeof(m_buf)); }
     VOID Update(const UINT8 * data, SIZE_T len);
 
 protected:

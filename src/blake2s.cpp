@@ -145,6 +145,9 @@ VOID CBlake2s::Compress(const UINT8 block[64], INT32 is_last)
     {
         m_H[i] ^= v[i] ^ v[i + 8];
     }
+
+    secure_zero(m, sizeof(m));
+    secure_zero(v, sizeof(v));
 }
 
 VOID CBlake2s::Update(const VOID * in, SIZE_T inlen)
@@ -185,6 +188,7 @@ VOID CBlake2s::Finish(UINT8 out[])
 
     memcpy(block, m_Buf, m_BufLen);
     Compress(block, 1);
+    secure_zero(block, sizeof(block));
 
     for ( SIZE_T i = 0; i < m_OutLen; i++ )
     {

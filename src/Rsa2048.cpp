@@ -23,6 +23,7 @@ static VOID random_1024_odd(CRsaBigInt2048 & x)
     le[127] |= 0x80;
     le[0] |= 0x01;
     x.fromBytesLE(le, 128);
+    secure_zero(le, sizeof(le));
 }
 
 static BOOL prime_filter(const CRsaBigInt2048 & n)
@@ -198,6 +199,8 @@ static VOID mgf1_sha256(UINT8 * out, SIZE_T outLen, const UINT8 * seed, SIZE_T s
         memcpy(out + produced, digest, need);
         produced += need;
     }
+    secure_zero(counter_be, sizeof(counter_be));
+    secure_zero(digest, sizeof(digest));
 }
 
 
@@ -226,6 +229,7 @@ static BOOL emsa_pss_encode_sha256(UINT8 * EM, SIZE_T emLen, const UINT8 * m, SI
     static const UINT8 zeros[8] = { 0 };
     sha.Update(zeros, sizeof(zeros));
     sha.Update(mHash, sizeof(mHash));
+    secure_zero(mHash, sizeof(mHash));
 
     // 3) DB = PS || 0x01 || salt
     INT32 psLen = (INT32)(emLen - hLen - 2 - saltLen);
@@ -260,6 +264,8 @@ static BOOL emsa_pss_encode_sha256(UINT8 * EM, SIZE_T emLen, const UINT8 * m, SI
     // 6) EM = maskedDB || H || 0xBC
     memcpy(EM + emLen - hLen - 1, H, hLen);
     EM[emLen - 1] = 0xBC;
+
+    secure_zero(H, sizeof(H));
 
     return TRUE;
 }
@@ -296,6 +302,7 @@ static BOOL emsa_pss_verify_sha256(const UINT8 * EM, SIZE_T emLen, const UINT8 *
     {
         if ( (DB[0] & ~mask) != 0 )
         {
+            secure_zero(mHash, sizeof(mHash));
             return FALSE;
         }
     }
@@ -320,11 +327,13 @@ static BOOL emsa_pss_verify_sha256(const UINT8 * EM, SIZE_T emLen, const UINT8 *
     {
         if ( DB[i] != 0x00 )
         {
+            secure_zero(mHash, sizeof(mHash));
             return FALSE;
         }
     }
     if ( DB[psLen] != 0x01 )
     {
+        secure_zero(mHash, sizeof(mHash));
         return FALSE;
     }
     const UINT8 * salt = DB + psLen + 1;
@@ -338,7 +347,12 @@ static BOOL emsa_pss_verify_sha256(const UINT8 * EM, SIZE_T emLen, const UINT8 *
     sha.Update(salt, saltLen);
     sha.Finish(Hprime);
 
-    return secure_equal(Hprime, H, sizeof(Hprime));
+    BOOL eq = secure_equal(Hprime, H, sizeof(Hprime));
+
+    secure_zero(mHash, sizeof(mHash));
+    secure_zero(Hprime, sizeof(Hprime));
+
+    return eq;
 }
 
 // ---------- generate keys ----------
@@ -455,6 +469,9 @@ BOOL RsaSignPSS_SHA256(const CRsaKey2048 & key, const UINT8 * msg, SIZE_T msgLen
 
     // 4) I2OSP
     I2OSP(sig, 256, s);
+
+    secure_zero(EM, sizeof(EM));
+
     return TRUE;
 }
 
@@ -483,6 +500,10 @@ BOOL RsaVerifyPSS_SHA256(const CRsaKey2048Pub & pub, const UINT8 * msg, SIZE_T m
     I2OSP(EM, emLen, m);
 
     // 4) EMSA-PSS-VERIFY
-    return emsa_pss_verify_sha256(EM, emLen, msg, msgLen, saltLen, modBits);
+    BOOL ok = emsa_pss_verify_sha256(EM, emLen, msg, msgLen, saltLen, modBits);
+
+    secure_zero(EM, sizeof(EM));
+
+    return ok;
 }
 

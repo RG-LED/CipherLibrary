@@ -80,6 +80,7 @@ VOID CFeP256Base::ConditionalSub(FOLD_BUF2 & buf, const CFeP256Base & n)
         buf[i] = (buf[i] & mask) | (diff[i] & ~mask);
     }
     buf[BI256_LIMBS] = 0; // must be solved
+    secure_zero(diff, sizeof(diff));
 }
 
 
@@ -282,6 +283,8 @@ VOID CFeP256::FoldP(FOLD_BUF & buf)
             BI256_SHIFT_RIGHT_LIMB(c);
         }
     }
+    secure_zero(hi, sizeof(hi));
+    secure_zero(acc, sizeof(acc));
 }
 
 const static UINT8 _N[32] = {

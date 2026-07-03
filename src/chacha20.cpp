@@ -8,6 +8,7 @@
 /* ========================================================================== */
 
 #include "chacha20.h"
+#include "secure.h"
 
 CChacha20::CChacha20()
 {
@@ -16,6 +17,16 @@ CChacha20::CChacha20()
     m_BlocksOut = 0;
 #endif
 }
+
+
+CChacha20::~CChacha20()
+{
+    secure_zero(m_Key, sizeof(m_Key));
+    secure_zero(m_Nonce, sizeof(m_Nonce));
+    secure_zero(m_Buf, sizeof(m_Buf));
+    m_Counter = 0;
+}
+
 
 VOID CChacha20::Refill()
 {
@@ -53,6 +64,9 @@ VOID CChacha20::Refill()
 #if SUPPORT_RESEED
     m_BlocksOut++;
 #endif
+
+    secure_zero(s, sizeof(s));
+    secure_zero(w, sizeof(w));
 }
 
 VOID CChacha20::RunChaChaRounds(UINT32 w[16])
@@ -199,6 +213,7 @@ UINT32 CChacha20::Take18()
     UINT8 tmp[3];
     Read(tmp, 3);
     UINT32 v = ((UINT32)tmp[0]) | ((UINT32)tmp[1] << 8) | ((UINT32)tmp[2] << 16);
+    secure_zero(tmp, sizeof(tmp));
     return (v >> 6) & 0x3FFFFu;  /* upper 18 bit */
 }
 #endif

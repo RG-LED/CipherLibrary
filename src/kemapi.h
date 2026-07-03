@@ -36,11 +36,15 @@ public:
 
         if ( !CEcdh<C>::PrivateKeyToPublicKey(eph_pub, eph_priv) )
         {
+            secure_zero(eph_priv, sizeof(eph_priv));
+            secure_zero(eph_pub, sizeof(eph_pub));
             return FALSE;
         }
 
         if ( !CEcdh<C>::GetSharedSecret(secret, eph_priv, pub) )
         {
+            secure_zero(eph_priv, sizeof(eph_priv));
+            secure_zero(eph_pub, sizeof(eph_pub));
             return FALSE;
         }
 

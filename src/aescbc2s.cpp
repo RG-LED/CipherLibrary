@@ -135,6 +135,8 @@ VOID CAesCbc2s::Decrypt(UINT8 out[], const UINT8 in[])
 
     memcpy(m_Vector, nextVector, sizeof(m_Vector));
     CombineData(out, m_Data[0], m_Data[1]);
+
+    secure_zero(nextVector, sizeof(nextVector));
 }
 
 /************************************************************/
@@ -314,6 +316,9 @@ VOID CAesCbc2s::SubWord(UINT32 & t0, UINT32 & t1)
 
     t0 = (p0[0] | (p0[1] << 8) | (p0[2] << 16) | (p0[3] << 24));
     t1 = (p1[0] | (p1[1] << 8) | (p1[2] << 16) | (p1[3] << 24));
+
+    secure_zero(p0, sizeof(p0));
+    secure_zero(p1, sizeof(p1));
 }
 
 /************************************************************/
@@ -826,6 +831,9 @@ VOID CAesCbc2s::sbox_masked_bs16(UINT8 data0[16], UINT8 data1[16])
     /* 4) unpack to bytes */
     unpack_bitslice16(q0, data0);
     unpack_bitslice16(q1, data1);
+
+    secure_zero(q0, sizeof(q0));
+    secure_zero(q1, sizeof(q1));
 }
 
 /* ===== Public API: InvSubBytes ===== */
@@ -847,5 +855,8 @@ VOID CAesCbc2s::inv_sbox_masked_bs16(UINT8 data0[16], UINT8 data1[16])
 
     unpack_bitslice16(q0, data0);
     unpack_bitslice16(q1, data1);
+
+    secure_zero(q0, sizeof(q0));
+    secure_zero(q1, sizeof(q1));
 }
 

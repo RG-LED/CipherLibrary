@@ -72,6 +72,7 @@ public:
         Expand(buf, a);
         Mod(buf, b);
         Extract(out, buf);
+        secure_zero(buf, sizeof(buf));
     }
 
 #if 0
@@ -356,6 +357,7 @@ protected:
         FOLD_BUF buf;
         Expand(buf, a);
         Mul(out, buf, b);
+        secure_zero(buf, sizeof(buf));
     }
 
     static VOID Mul(FOLD_BUF & buf, const FOLD_BUF & a, const CFeBigInt<BITS> & b)
@@ -486,6 +488,7 @@ protected:
                 ShiftRightBorrow(c);
             }
         }
+        secure_zero(buf2, sizeof(buf2));
     }
 
     static INT32 Compare(const CFeBigInt<BITS> & a, const CFeBigInt<BITS> & b)

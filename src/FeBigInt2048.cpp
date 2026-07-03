@@ -221,6 +221,7 @@ VOID CFeBigInt2048::Mul(FOLD_BUF & out, const CFeBigInt2048 & a, const CFeBigInt
     FOLD_BUF buf;
     Expand(buf, a);
     Mul(out, buf, b);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt2048::Mul(FOLD_BUF & buf, const FOLD_BUF & a, const CFeBigInt2048 & b)
@@ -349,6 +350,7 @@ VOID CFeBigInt2048::Mod(CFeBigInt2048 & out, const CFeBigInt2048 & a, const CFeB
     Expand(buf, a);
     Mod(buf, b);
     Extract(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt2048::Mod(FOLD_BUF & buf, const CFeBigInt2048 & a)
@@ -459,6 +461,7 @@ VOID CFeBigInt2048::Mod(FOLD_BUF & buf, const CFeBigInt2048 & a)
             BI2048_SHIFT_RIGHT_CARRY(c);
         }
     }
+    secure_zero(buf2, sizeof(buf2));
 }
 
 #if 0

@@ -8,6 +8,7 @@
 /* ========================================================================== */
 
 #include "kmacbase.h"
+#include "secure.h"
 
 
 VOID CKmacBase::Initialize(const UINT8 * key, SIZE_T keylen, const UINT8 * custom, SIZE_T customlen)
@@ -45,5 +46,7 @@ VOID CKmacBase::RightEncode(SIZE_T len)
     SIZE_T nbytes = sizeof(enc) - i;
     enc[sizeof(enc) - 1] = (UINT8)(nbytes - 1);
     Absorb(enc + i, nbytes);
+
+    secure_zero(enc, sizeof(enc));
 }
 

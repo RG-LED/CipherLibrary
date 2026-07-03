@@ -31,12 +31,12 @@ public:
         }
 
         UINT32 outBits = (UINT32)(outLen * 8);
+        UINT8 num[4];
+        UINT8 buf[NBb];
 
         for ( UINT32 i = 1; i <= loop; i++ )
         {
             m_prf.SetKeys(key, keyLen);
-
-            UINT8 num[4];
 
             num[0] = (UINT8)(i >> 24);
             num[1] = (UINT8)(i >> 16);
@@ -55,13 +55,15 @@ public:
             m_prf.Update(num, sizeof(num));
 
             SIZE_T take = (block > outLen) ? outLen : block;
-            UINT8 buf[NBb];
 
             m_prf.Finish(buf);
             memcpy(out, buf, take);
             out += take;
             outLen -= take;
         }
+
+        secure_zero(num, sizeof(num));
+        secure_zero(buf, sizeof(buf));
 
         return TRUE;
     }

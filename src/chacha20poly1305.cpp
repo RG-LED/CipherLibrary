@@ -105,6 +105,8 @@ BOOL CChacha20Poly1305::VerifyAndDecrypt(UINT8 * out, const UINT8 * in, SIZE_T l
     {
         diff |= tag[i] ^ tag2[i];
     }
+    secure_zero(tag2, sizeof(tag2));
+
     if ( diff )
     {
         return FALSE;

@@ -87,6 +87,10 @@ VOID CAesCtrDrbg::CDerivation::Calc(const UINT8 * data1, SIZE_T len1,
         EncryptBlock(m_buf);
         memcpy(m_output + i, m_buf, NBb);
     }
+
+    secure_zero(header, sizeof(header));
+    secure_zero(iv, sizeof(iv));
+    secure_zero(output, sizeof(output));
 }
 
 VOID CAesCtrDrbg::CDerivation::ProcessData(const UINT8 * data, SIZE_T len)
@@ -166,6 +170,8 @@ BOOL CAesCtrDrbg::Instantiate(const UINT8 * entropy, SIZE_T eLen,
     Update(seed);
     m_reseedCounter = 1;
 
+    secure_zero(seed, sizeof(seed));
+
     return TRUE;
 }
 
@@ -199,6 +205,8 @@ BOOL CAesCtrDrbg::Reseed(const UINT8 * entropy, SIZE_T eLen,
     Update(seed);
     m_reseedCounter = 1;
 
+    secure_zero(seed, sizeof(seed));
+
     return TRUE;
 }
 
@@ -231,10 +239,10 @@ BOOL CAesCtrDrbg::Generate(UINT8 * out, SIZE_T oLen,
         secure_zero(add, sizeof(add));
     }
 
+    UINT8 buf[NBb];
     while ( oLen > 0 )
     {
         IncrementVector();
-        UINT8 buf[NBb];
         memcpy(buf, m_vector, sizeof(buf));
         EncryptBlock(buf);
         SIZE_T take = (oLen > NBb) ? NBb : oLen;
@@ -245,6 +253,9 @@ BOOL CAesCtrDrbg::Generate(UINT8 * out, SIZE_T oLen,
 
     Update(add);
     m_reseedCounter++;
+
+    secure_zero(add, sizeof(add));
+    secure_zero(buf, sizeof(buf));
 
     return TRUE;
 }
@@ -267,5 +278,7 @@ VOID CAesCtrDrbg::Update(const UINT8 * data)
     memcpy(m_key, buf, m_keyLen);
     SetKeys(m_key, m_keyLen);
     memcpy(m_vector, &buf[m_keyLen], sizeof(m_vector));
+
+    secure_zero(buf, sizeof(buf));
 }
 

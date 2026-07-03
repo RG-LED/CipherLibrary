@@ -115,8 +115,9 @@ VOID CSha256::Finish(UINT8 hash[32])
         hash[i * 4 + 2] = (UINT8)(m_H[i] >>  8);
         hash[i * 4 + 3] = (UINT8) m_H[i];
     }
-}
 
+    secure_zero(length, sizeof(length));
+}
 
 
 /* ========================================================================== */
@@ -191,6 +192,7 @@ VOID CSha256::CalculateHash(const UINT8 data[64])
         w[i] = sigma1(w[i - 2]) + w[i - 7] + sigma0(w[i - 15]) + w[i - 16];
     }
     UpdateHash(w);
+    secure_zero(w, sizeof(w));
 }
 
 

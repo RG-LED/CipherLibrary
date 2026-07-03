@@ -18,6 +18,7 @@ class CChacha20
 {
 public:
     CChacha20();
+    ~CChacha20();
 #if SUPPORT_RESEED
     VOID Initialize(const UINT8 seed32[32], const UINT8 nonce12[12], UINT32 counter = 0, UINT64 reseed_interval_blocks = 0x9502f9129);
 #else

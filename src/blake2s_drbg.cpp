@@ -68,10 +68,12 @@ VOID CBlake2sDrbg::Initialize(const UINT8 seed32[32], const VOID * personalizati
 VOID CBlake2sDrbg::Fill(VOID * out, SIZE_T outlen)
 {
     UINT8 * p = (UINT8 *)out;
+    UINT8 in[3 + 8 + 16];
+    UINT8 block[32];
+
     while ( outlen > 0 )
     {
         /* block = BLAKE2s(key, "OUT" || ctr || perso) */
-        UINT8 in[3 + 8 + 16];
         SIZE_T off = 0;
         memcpy(in + off, "OUT", 3);
         off += 3;
@@ -80,7 +82,6 @@ VOID CBlake2sDrbg::Fill(VOID * out, SIZE_T outlen)
         memcpy(in + off, m_Perso, m_PersoLen);
         off += m_PersoLen;
 
-        UINT8 block[32];
         HashKeyed32(block, m_Key, in, off);
         m_Ctr++;
 
@@ -93,6 +94,9 @@ VOID CBlake2sDrbg::Fill(VOID * out, SIZE_T outlen)
         /* e.g.: rekey at every 256 blocks (8KB) */
         /* if ((m_Ctr & 0xFF) == 0) Reseed(NULL, 0); */
     }
+
+    secure_zero(in, sizeof(in));
+    secure_zero(block, sizeof(block));
 }
 
 VOID CBlake2sDrbg::Reseed(const VOID * extra, SIZE_T extra_len)
@@ -115,11 +119,15 @@ VOID CBlake2sDrbg::Reseed(const VOID * extra, SIZE_T extra_len)
         UINT8 k2[32];
         HashKeyed32(k2, k1, extra, extra_len);
         memcpy(m_Key, k2, 32);
+        secure_zero(k2, sizeof(k2));
     }
     else
     {
         memcpy(m_Key, k1, 32);
     }
     m_Ctr++;
+
+    secure_zero(in, sizeof(in));
+    secure_zero(k1, sizeof(k1));
 }
 

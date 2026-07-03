@@ -36,11 +36,11 @@
 
 const UINT8 CMd5::CMd5Work::m_abyPadding[64] =
 {
-   0x80,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    0x80,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 /*
@@ -61,25 +61,25 @@ const UINT8 CMd5::CMd5Work::m_abyPadding[64] =
  * Rotation is separate from addition to prevent recomputation.
  */
 #define FF(a, b, c, d, x, s, ac) { \
-            (a) += F((b), (c), (d)) + (x) + (UINT32)(ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
-        }
+                (a) += F((b), (c), (d)) + (x) + (UINT32)(ac); \
+                (a) = ROTATE_LEFT((a), (s)); \
+                (a) += (b); \
+          }
 #define GG(a, b, c, d, x, s, ac) { \
-            (a) += G((b), (c), (d)) + (x) + (UINT32)(ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
-        }
+                (a) += G((b), (c), (d)) + (x) + (UINT32)(ac); \
+                (a) = ROTATE_LEFT((a), (s)); \
+                (a) += (b); \
+          }
 #define HH(a, b, c, d, x, s, ac) { \
-            (a) += H((b), (c), (d)) + (x) + (UINT32)(ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
-        }
+                (a) += H((b), (c), (d)) + (x) + (UINT32)(ac); \
+                (a) = ROTATE_LEFT((a), (s)); \
+                (a) += (b); \
+          }
 #define II(a, b, c, d, x, s, ac) { \
-            (a) += I((b), (c), (d)) + (x) + (UINT32)(ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
-        }
+                (a) += I((b), (c), (d)) + (x) + (UINT32)(ac); \
+                (a) = ROTATE_LEFT((a), (s)); \
+                (a) += (b); \
+          }
 
 /*=============================================================================
  *  function    : CMd5(const UINT8 * ptr)
@@ -90,7 +90,7 @@ const UINT8 CMd5::CMd5Work::m_abyPadding[64] =
  *===========================================================================*/
 CMd5::CMd5(const UINT8 * ptr)
 {
-   SetDigest(ptr);
+    SetDigest(ptr);
 }
 
 
@@ -103,8 +103,8 @@ CMd5::CMd5(const UINT8 * ptr)
  *===========================================================================*/
 CMd5 & CMd5::operator=(const UINT8 * ptr)
 {
-   SetDigest(ptr);
-   return *this;
+    SetDigest(ptr);
+    return *this;
 }
 
 /*=============================================================================
@@ -115,8 +115,22 @@ CMd5 & CMd5::operator=(const UINT8 * ptr)
  *===========================================================================*/
 VOID CMd5::Initialize(VOID)
 {
-   m_Work.Initialize();
-   secure_zero(m_abyDigest, sizeof(m_abyDigest));
+    m_Work.Initialize();
+    secure_zero(m_abyDigest, sizeof(m_abyDigest));
+}
+
+
+/*=============================================================================
+ *  function    : CMd5Work::~CMd5Work()
+ *              : Destructer
+ *  parameter   : none
+ *  return      : none
+ *===========================================================================*/
+CMd5::CMd5Work::~CMd5Work()
+{
+    secure_zero(m_adwState, sizeof(m_adwState));
+    secure_zero(m_adwCount, sizeof(m_adwCount));
+    secure_zero(m_abyBuffer, sizeof(m_abyBuffer));
 }
 
 
@@ -128,14 +142,14 @@ VOID CMd5::Initialize(VOID)
  *===========================================================================*/
 VOID CMd5::CMd5Work::Initialize(VOID)
 {
-   m_adwCount[0] = m_adwCount[1] = 0;
+    m_adwCount[0] = m_adwCount[1] = 0;
 /*
  * Load magic initialization constants.
  */
-   m_adwState[0] = 0x67452301;
-   m_adwState[1] = 0xefcdab89;
-   m_adwState[2] = 0x98badcfe;
-   m_adwState[3] = 0x10325476;
+    m_adwState[0] = 0x67452301;
+    m_adwState[1] = 0xefcdab89;
+    m_adwState[2] = 0x98badcfe;
+    m_adwState[3] = 0x10325476;
 }
 
 
@@ -148,48 +162,48 @@ VOID CMd5::CMd5Work::Initialize(VOID)
  *===========================================================================*/
 VOID CMd5::CMd5Work::Update(const UINT8 * input, SIZE_T inputLen)
 {
-   SIZE_T i;
-   UINT32 index;
-   SIZE_T partLen;
+    SIZE_T i;
+    UINT32 index;
+    SIZE_T partLen;
 
-   /* Compute number of bytes mod 64 */
-   index = (UINT32)((m_adwCount[0] >> 3) & 0x3F);
+    /* Compute number of bytes mod 64 */
+    index = (UINT32)((m_adwCount[0] >> 3) & 0x3F);
 
-   /* Update number of bits */
-   m_adwCount[0] += ((UINT32)inputLen << 3);
-   if ( m_adwCount[0] < ((UINT32)inputLen << 3) )
-   {
-      m_adwCount[1]++;
-   }
-   m_adwCount[1] += ((UINT32)inputLen >> 29);
+    /* Update number of bits */
+    m_adwCount[0] += ((UINT32)inputLen << 3);
+    if ( m_adwCount[0] < ((UINT32)inputLen << 3) )
+    {
+        m_adwCount[1]++;
+    }
+    m_adwCount[1] += ((UINT32)inputLen >> 29);
 
-   partLen = 64 - index;
+    partLen = 64 - index;
 
-   /*
-    * Transform as many times as possible.
-    */
-   if ( inputLen >= partLen )
-   {
-      memcpy((POINTER)&m_abyBuffer[index], (POINTER)input, partLen);
-      Transform(m_adwState, m_abyBuffer);
+    /*
+     * Transform as many times as possible.
+     */
+    if ( inputLen >= partLen )
+    {
+        memcpy(&m_abyBuffer[index], input, partLen);
+        Transform(m_adwState, m_abyBuffer);
 
-      for ( i = partLen; i + 63 < inputLen; i += 64 )
-      {
-         Transform(m_adwState, &input[i]);
-      }
+        for ( i = partLen; i + 63 < inputLen; i += 64 )
+        {
+            Transform(m_adwState, &input[i]);
+        }
 
-      index = 0;
-   }
-   else
-   {
-      i = 0;
-   }
+        index = 0;
+    }
+    else
+    {
+        i = 0;
+    }
 
-   /* Buffer remaining input */
-   if ( inputLen > i )
-   {
-      memcpy((POINTER)&m_abyBuffer[index], (POINTER)&input[i], inputLen - i);
-   }
+    /* Buffer remaining input */
+    if ( inputLen > i )
+    {
+        memcpy(&m_abyBuffer[index], &input[i], inputLen - i);
+    }
 }
 
 
@@ -201,31 +215,32 @@ VOID CMd5::CMd5Work::Update(const UINT8 * input, SIZE_T inputLen)
  *===========================================================================*/
 VOID CMd5::CMd5Work::Finalize(UINT8 digest[16])
 {
-   UINT8 bits[8];
-   UINT32 index;
-   UINT32 padLen;
+    UINT8 bits[8];
+    UINT32 index;
+    UINT32 padLen;
 
-   /* Save number of bits */
-   Encode(bits, m_adwCount, 8);
+    /* Save number of bits */
+    Encode(bits, m_adwCount, 8);
 
-   /*
-    * Pad out to 56 mod 64.
-    */
-   index = (UINT32)((m_adwCount[0] >> 3) & 0x3f);
-   padLen = (index < 56) ? (56 - index) : (120 - index);
-   Update(m_abyPadding, padLen);
+    /*
+     * Pad out to 56 mod 64.
+     */
+    index = (UINT32)((m_adwCount[0] >> 3) & 0x3f);
+    padLen = (index < 56) ? (56 - index) : (120 - index);
+    Update(m_abyPadding, padLen);
 
-   /* Append length (before padding) */
-   Update(bits, 8);
-   /* Store state in digest */
-   Encode(digest, m_adwState, 16);
+    /* Append length (before padding) */
+    Update(bits, 8);
+    /* Store state in digest */
+    Encode(digest, m_adwState, 16);
 
-   /*
-    * Zeroize sensitive information.
-    */
-   secure_zero((POINTER)m_adwState, sizeof(m_adwState));
-   secure_zero((POINTER)m_adwCount, sizeof(m_adwCount));
-   secure_zero((POINTER)m_abyBuffer, sizeof(m_abyBuffer));
+    /*
+     * Zeroize sensitive information.
+     */
+    secure_zero(m_adwState, sizeof(m_adwState));
+    secure_zero(m_adwCount, sizeof(m_adwCount));
+    secure_zero(m_abyBuffer, sizeof(m_abyBuffer));
+    secure_zero(bits, sizeof(bits));
 }
 
 
@@ -238,95 +253,95 @@ VOID CMd5::CMd5Work::Finalize(UINT8 digest[16])
  *===========================================================================*/
 VOID CMd5::CMd5Work::Transform(UINT32 state[4], const UINT8 block[64])
 {
-   UINT32 a = state[0];
-   UINT32 b = state[1];
-   UINT32 c = state[2];
-   UINT32 d = state[3];
-   UINT32 x[16];
+    UINT32 a = state[0];
+    UINT32 b = state[1];
+    UINT32 c = state[2];
+    UINT32 d = state[3];
+    UINT32 x[16];
 
-   Decode(x, block, 64);
+    Decode(x, block, 64);
 
-   /* Round 1 */
-   FF(a, b, c, d, x[ 0], S11, 0xd76aa478); /* 1 */
-   FF(d, a, b, c, x[ 1], S12, 0xe8c7b756); /* 2 */
-   FF(c, d, a, b, x[ 2], S13, 0x242070db); /* 3 */
-   FF(b, c, d, a, x[ 3], S14, 0xc1bdceee); /* 4 */
-   FF(a, b, c, d, x[ 4], S11, 0xf57c0faf); /* 5 */
-   FF(d, a, b, c, x[ 5], S12, 0x4787c62a); /* 6 */
-   FF(c, d, a, b, x[ 6], S13, 0xa8304613); /* 7 */
-   FF(b, c, d, a, x[ 7], S14, 0xfd469501); /* 8 */
-   FF(a, b, c, d, x[ 8], S11, 0x698098d8); /* 9 */
-   FF(d, a, b, c, x[ 9], S12, 0x8b44f7af); /* 10 */
-   FF(c, d, a, b, x[10], S13, 0xffff5bb1); /* 11 */
-   FF(b, c, d, a, x[11], S14, 0x895cd7be); /* 12 */
-   FF(a, b, c, d, x[12], S11, 0x6b901122); /* 13 */
-   FF(d, a, b, c, x[13], S12, 0xfd987193); /* 14 */
-   FF(c, d, a, b, x[14], S13, 0xa679438e); /* 15 */
-   FF(b, c, d, a, x[15], S14, 0x49b40821); /* 16 */
+    /* Round 1 */
+    FF(a, b, c, d, x[ 0], S11, 0xd76aa478); /* 1 */
+    FF(d, a, b, c, x[ 1], S12, 0xe8c7b756); /* 2 */
+    FF(c, d, a, b, x[ 2], S13, 0x242070db); /* 3 */
+    FF(b, c, d, a, x[ 3], S14, 0xc1bdceee); /* 4 */
+    FF(a, b, c, d, x[ 4], S11, 0xf57c0faf); /* 5 */
+    FF(d, a, b, c, x[ 5], S12, 0x4787c62a); /* 6 */
+    FF(c, d, a, b, x[ 6], S13, 0xa8304613); /* 7 */
+    FF(b, c, d, a, x[ 7], S14, 0xfd469501); /* 8 */
+    FF(a, b, c, d, x[ 8], S11, 0x698098d8); /* 9 */
+    FF(d, a, b, c, x[ 9], S12, 0x8b44f7af); /* 10 */
+    FF(c, d, a, b, x[10], S13, 0xffff5bb1); /* 11 */
+    FF(b, c, d, a, x[11], S14, 0x895cd7be); /* 12 */
+    FF(a, b, c, d, x[12], S11, 0x6b901122); /* 13 */
+    FF(d, a, b, c, x[13], S12, 0xfd987193); /* 14 */
+    FF(c, d, a, b, x[14], S13, 0xa679438e); /* 15 */
+    FF(b, c, d, a, x[15], S14, 0x49b40821); /* 16 */
 
-   /* Round 2 */
-   GG(a, b, c, d, x[ 1], S21, 0xf61e2562); /* 17 */
-   GG(d, a, b, c, x[ 6], S22, 0xc040b340); /* 18 */
-   GG(c, d, a, b, x[11], S23, 0x265e5a51); /* 19 */
-   GG(b, c, d, a, x[ 0], S24, 0xe9b6c7aa); /* 20 */
-   GG(a, b, c, d, x[ 5], S21, 0xd62f105d); /* 21 */
-   GG(d, a, b, c, x[10], S22, 0x02441453); /* 22 */
-   GG(c, d, a, b, x[15], S23, 0xd8a1e681); /* 23 */
-   GG(b, c, d, a, x[ 4], S24, 0xe7d3fbc8); /* 24 */
-   GG(a, b, c, d, x[ 9], S21, 0x21e1cde6); /* 25 */
-   GG(d, a, b, c, x[14], S22, 0xc33707d6); /* 26 */
-   GG(c, d, a, b, x[ 3], S23, 0xf4d50d87); /* 27 */
-   GG(b, c, d, a, x[ 8], S24, 0x455a14ed); /* 28 */
-   GG(a, b, c, d, x[13], S21, 0xa9e3e905); /* 29 */
-   GG(d, a, b, c, x[ 2], S22, 0xfcefa3f8); /* 30 */
-   GG(c, d, a, b, x[ 7], S23, 0x676f02d9); /* 31 */
-   GG(b, c, d, a, x[12], S24, 0x8d2a4c8a); /* 32 */
+    /* Round 2 */
+    GG(a, b, c, d, x[ 1], S21, 0xf61e2562); /* 17 */
+    GG(d, a, b, c, x[ 6], S22, 0xc040b340); /* 18 */
+    GG(c, d, a, b, x[11], S23, 0x265e5a51); /* 19 */
+    GG(b, c, d, a, x[ 0], S24, 0xe9b6c7aa); /* 20 */
+    GG(a, b, c, d, x[ 5], S21, 0xd62f105d); /* 21 */
+    GG(d, a, b, c, x[10], S22, 0x02441453); /* 22 */
+    GG(c, d, a, b, x[15], S23, 0xd8a1e681); /* 23 */
+    GG(b, c, d, a, x[ 4], S24, 0xe7d3fbc8); /* 24 */
+    GG(a, b, c, d, x[ 9], S21, 0x21e1cde6); /* 25 */
+    GG(d, a, b, c, x[14], S22, 0xc33707d6); /* 26 */
+    GG(c, d, a, b, x[ 3], S23, 0xf4d50d87); /* 27 */
+    GG(b, c, d, a, x[ 8], S24, 0x455a14ed); /* 28 */
+    GG(a, b, c, d, x[13], S21, 0xa9e3e905); /* 29 */
+    GG(d, a, b, c, x[ 2], S22, 0xfcefa3f8); /* 30 */
+    GG(c, d, a, b, x[ 7], S23, 0x676f02d9); /* 31 */
+    GG(b, c, d, a, x[12], S24, 0x8d2a4c8a); /* 32 */
 
-   /* Round 3 */
-   HH(a, b, c, d, x[ 5], S31, 0xfffa3942); /* 33 */
-   HH(d, a, b, c, x[ 8], S32, 0x8771f681); /* 34 */
-   HH(c, d, a, b, x[11], S33, 0x6d9d6122); /* 35 */
-   HH(b, c, d, a, x[14], S34, 0xfde5380c); /* 36 */
-   HH(a, b, c, d, x[ 1], S31, 0xa4beea44); /* 37 */
-   HH(d, a, b, c, x[ 4], S32, 0x4bdecfa9); /* 38 */
-   HH(c, d, a, b, x[ 7], S33, 0xf6bb4b60); /* 39 */
-   HH(b, c, d, a, x[10], S34, 0xbebfbc70); /* 40 */
-   HH(a, b, c, d, x[13], S31, 0x289b7ec6); /* 41 */
-   HH(d, a, b, c, x[ 0], S32, 0xeaa127fa); /* 42 */
-   HH(c, d, a, b, x[ 3], S33, 0xd4ef3085); /* 43 */
-   HH(b, c, d, a, x[ 6], S34, 0x04881d05); /* 44 */
-   HH(a, b, c, d, x[ 9], S31, 0xd9d4d039); /* 45 */
-   HH(d, a, b, c, x[12], S32, 0xe6db99e5); /* 46 */
-   HH(c, d, a, b, x[15], S33, 0x1fa27cf8); /* 47 */
-   HH(b, c, d, a, x[ 2], S34, 0xc4ac5665); /* 48 */
+    /* Round 3 */
+    HH(a, b, c, d, x[ 5], S31, 0xfffa3942); /* 33 */
+    HH(d, a, b, c, x[ 8], S32, 0x8771f681); /* 34 */
+    HH(c, d, a, b, x[11], S33, 0x6d9d6122); /* 35 */
+    HH(b, c, d, a, x[14], S34, 0xfde5380c); /* 36 */
+    HH(a, b, c, d, x[ 1], S31, 0xa4beea44); /* 37 */
+    HH(d, a, b, c, x[ 4], S32, 0x4bdecfa9); /* 38 */
+    HH(c, d, a, b, x[ 7], S33, 0xf6bb4b60); /* 39 */
+    HH(b, c, d, a, x[10], S34, 0xbebfbc70); /* 40 */
+    HH(a, b, c, d, x[13], S31, 0x289b7ec6); /* 41 */
+    HH(d, a, b, c, x[ 0], S32, 0xeaa127fa); /* 42 */
+    HH(c, d, a, b, x[ 3], S33, 0xd4ef3085); /* 43 */
+    HH(b, c, d, a, x[ 6], S34, 0x04881d05); /* 44 */
+    HH(a, b, c, d, x[ 9], S31, 0xd9d4d039); /* 45 */
+    HH(d, a, b, c, x[12], S32, 0xe6db99e5); /* 46 */
+    HH(c, d, a, b, x[15], S33, 0x1fa27cf8); /* 47 */
+    HH(b, c, d, a, x[ 2], S34, 0xc4ac5665); /* 48 */
 
-   /* Round 4 */
-   II(a, b, c, d, x[ 0], S41, 0xf4292244); /* 49 */
-   II(d, a, b, c, x[ 7], S42, 0x432aff97); /* 50 */
-   II(c, d, a, b, x[14], S43, 0xab9423a7); /* 51 */
-   II(b, c, d, a, x[ 5], S44, 0xfc93a039); /* 52 */
-   II(a, b, c, d, x[12], S41, 0x655b59c3); /* 53 */
-   II(d, a, b, c, x[ 3], S42, 0x8f0ccc92); /* 54 */
-   II(c, d, a, b, x[10], S43, 0xffeff47d); /* 55 */
-   II(b, c, d, a, x[ 1], S44, 0x85845dd1); /* 56 */
-   II(a, b, c, d, x[ 8], S41, 0x6fa87e4f); /* 57 */
-   II(d, a, b, c, x[15], S42, 0xfe2ce6e0); /* 58 */
-   II(c, d, a, b, x[ 6], S43, 0xa3014314); /* 59 */
-   II(b, c, d, a, x[13], S44, 0x4e0811a1); /* 60 */
-   II(a, b, c, d, x[ 4], S41, 0xf7537e82); /* 61 */
-   II(d, a, b, c, x[11], S42, 0xbd3af235); /* 62 */
-   II(c, d, a, b, x[ 2], S43, 0x2ad7d2bb); /* 63 */
-   II(b, c, d, a, x[ 9], S44, 0xeb86d391); /* 64 */
+    /* Round 4 */
+    II(a, b, c, d, x[ 0], S41, 0xf4292244); /* 49 */
+    II(d, a, b, c, x[ 7], S42, 0x432aff97); /* 50 */
+    II(c, d, a, b, x[14], S43, 0xab9423a7); /* 51 */
+    II(b, c, d, a, x[ 5], S44, 0xfc93a039); /* 52 */
+    II(a, b, c, d, x[12], S41, 0x655b59c3); /* 53 */
+    II(d, a, b, c, x[ 3], S42, 0x8f0ccc92); /* 54 */
+    II(c, d, a, b, x[10], S43, 0xffeff47d); /* 55 */
+    II(b, c, d, a, x[ 1], S44, 0x85845dd1); /* 56 */
+    II(a, b, c, d, x[ 8], S41, 0x6fa87e4f); /* 57 */
+    II(d, a, b, c, x[15], S42, 0xfe2ce6e0); /* 58 */
+    II(c, d, a, b, x[ 6], S43, 0xa3014314); /* 59 */
+    II(b, c, d, a, x[13], S44, 0x4e0811a1); /* 60 */
+    II(a, b, c, d, x[ 4], S41, 0xf7537e82); /* 61 */
+    II(d, a, b, c, x[11], S42, 0xbd3af235); /* 62 */
+    II(c, d, a, b, x[ 2], S43, 0x2ad7d2bb); /* 63 */
+    II(b, c, d, a, x[ 9], S44, 0xeb86d391); /* 64 */
 
-   state[0] += a;
-   state[1] += b;
-   state[2] += c;
-   state[3] += d;
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
 
-   /*
-    * Zeroize sensitive information.
-    */
-   secure_zero(x, sizeof(x));
+    /*
+     * Zeroize sensitive information.
+     */
+    secure_zero(x, sizeof(x));
 }
 
 
@@ -340,16 +355,16 @@ VOID CMd5::CMd5Work::Transform(UINT32 state[4], const UINT8 block[64])
  *===========================================================================*/
 VOID CMd5::CMd5Work::Encode(UINT8 * output, const UINT32 * input, SIZE_T len)
 {
-   UINT32 i;
-   UINT32 j;
+    UINT32 i;
+    UINT32 j;
 
-   for ( i = 0, j = 0; j < len; i++, j += 4 )
-   {
-      output[j]     = (UINT8)( input[i]        & 0xff);
-      output[j + 1] = (UINT8)((input[i] >> 8)  & 0xff);
-      output[j + 2] = (UINT8)((input[i] >> 16) & 0xff);
-      output[j + 3] = (UINT8)((input[i] >> 24) & 0xff);
-   }
+    for ( i = 0, j = 0; j < len; i++, j += 4 )
+    {
+        output[j]     = (UINT8)( input[i]        & 0xff);
+        output[j + 1] = (UINT8)((input[i] >> 8)  & 0xff);
+        output[j + 2] = (UINT8)((input[i] >> 16) & 0xff);
+        output[j + 3] = (UINT8)((input[i] >> 24) & 0xff);
+    }
 }
 
 
@@ -363,15 +378,15 @@ VOID CMd5::CMd5Work::Encode(UINT8 * output, const UINT32 * input, SIZE_T len)
  *===========================================================================*/
 VOID CMd5::CMd5Work::Decode(UINT32 * output, const UINT8 * input, SIZE_T len)
 {
-   UINT32 i;
-   UINT32 j;
+    UINT32 i;
+    UINT32 j;
 
-   for ( i = 0, j = 0; j < len; i++, j += 4 )
-   {
-      output[i] = ( (UINT32)input[j]         ) |
-                  (((UINT32)input[j+1]) << 8 ) |
-                  (((UINT32)input[j+2]) << 16) |
-                  (((UINT32)input[j+3]) << 24);
-   }
+    for ( i = 0, j = 0; j < len; i++, j += 4 )
+    {
+        output[i] = ( (UINT32)input[j]         ) |
+                    (((UINT32)input[j+1]) << 8 ) |
+                    (((UINT32)input[j+2]) << 16) |
+                    (((UINT32)input[j+3]) << 24);
+    }
 }
 

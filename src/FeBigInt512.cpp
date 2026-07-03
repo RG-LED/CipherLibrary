@@ -218,6 +218,7 @@ VOID CFeBigInt512::Mul(FOLD_BUF & out, const CFeBigInt512 & a, const CFeBigInt51
     FOLD_BUF buf;
     Expand(buf, a);
     Mul(out, buf, b);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt512::Mul(FOLD_BUF & buf, const FOLD_BUF & a, const CFeBigInt512 & b)
@@ -346,6 +347,7 @@ VOID CFeBigInt512::Mod(CFeBigInt512 & out, const CFeBigInt512 & a, const CFeBigI
     Expand(buf, a);
     Mod(buf, b);
     Extract(out, buf);
+    secure_zero(buf, sizeof(buf));
 }
 
 VOID CFeBigInt512::Mod(FOLD_BUF & buf, const CFeBigInt512 & a)
@@ -456,6 +458,7 @@ VOID CFeBigInt512::Mod(FOLD_BUF & buf, const CFeBigInt512 & a)
             BI512_SHIFT_RIGHT_CARRY(c);
         }
     }
+    secure_zero(buf2, sizeof(buf2));
 }
 
 #if 0

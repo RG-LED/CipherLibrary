@@ -68,6 +68,8 @@ VOID CAesCbc::Decrypt(UINT8 out[], const UINT8 in[])
 
     memcpy(m_Vector, nextVector, NBb);
     memcpy(out, m_Data, NBb);
+
+    secure_zero(nextVector, sizeof(nextVector));
 }
 
 /************************************************************/

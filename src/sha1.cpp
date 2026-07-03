@@ -137,3 +137,4 @@ void CSha1::Finish(UINT8 out[20])
         out[i * 4 + 3] = (m_h[i]      ) & 0xff;
     }
 }
+

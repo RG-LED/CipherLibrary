@@ -15,6 +15,7 @@
 class CAesCtrDrbg : public CAesCtr<AesCtrSpec::BIG128>
 {
 public:
+    ~CAesCtrDrbg() { secure_zero(m_key, sizeof(m_key)); }
     BOOL Setup(INT32 keyLen, BOOL useDf);
     BOOL Instantiate(const UINT8 * entropy, SIZE_T eLen,
                      const UINT8 * nonce, SIZE_T nLen,

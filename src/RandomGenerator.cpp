@@ -13,6 +13,7 @@
 #include "RandomGenerator.h"
 #include "Chacha20.h"
 #include "sha256.h"
+#include "secure.h"
 
 static CChacha20 randomizer;
 static std::mutex * random_mutex = NULL;
@@ -46,6 +47,9 @@ CRandomGenerator::CRandomGenerator()
 
     std::lock_guard<std::mutex> lock(*random_mutex);
     randomizer.Initialize(seed32, nonce12);
+    secure_zero(&guid, sizeof(guid));
+    secure_zero(seed32, sizeof(seed32));
+    secure_zero(nonce12, sizeof(nonce12));
 }
 
 VOID CRandomGenerator::Fill(UINT8 * p, SIZE_T len)

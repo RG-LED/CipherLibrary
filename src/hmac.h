@@ -68,6 +68,8 @@ public:
         m_iHash.Finish(digest);
         m_oHash.Update(digest, HashSize);
         m_oHash.Finish(out);
+
+        secure_zero(digest, sizeof(digest));
     }
 
 private:

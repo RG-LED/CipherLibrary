@@ -81,6 +81,8 @@ VOID CXChacha20Poly1305::Finish(UINT8 tag[16])
     m_poly.Finish(tag);
 
     m_state = ST_FINAL;
+
+    secure_zero(length, sizeof(length));
 }
 
 
