@@ -16,6 +16,8 @@ struct CRsaKey2048Pub {
     CRsaBigInt2048  N;     // modulus
     UINT32          e;     // public exponent (65537)
     CRsaMontCtx2048 montN; // mont context for N
+    BOOL LoadBytes(const UINT8 * p, SIZE_T len = BI2048_BYTES, UINT32 exp = 65537);
+    BOOL StoreBytes(UINT8 * p, SIZE_T len) { N.toBytesBE(p, len); }
 };
 
 struct CRsaKey2048Priv {

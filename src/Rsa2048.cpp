@@ -9,16 +9,22 @@
 
 #include "Rsa2048.h"
 #include "sha256.h"
-#include "RandomGenerator.h"
 #include "secure.h"
 
-static CRandomGenerator random;
+
+
+BOOL CRsaKey2048Pub::LoadBytes(const UINT8 * p, SIZE_T len, UINT32 exp)
+{
+    N.fromBytesBE(p, len);
+    e = exp;
+    return CRsaBigInt2048::PrepareContext(&montN, N, 64);
+}
 
 // ---------- generate 1024-bit odd number ----------
 static VOID random_1024_odd(CRsaBigInt2048 & x)
 {
     UINT8 le[128];
-    random.Fill(le, sizeof(le));
+    secure_random(le, sizeof(le));
     // set MSB and LSB
     le[127] |= 0x80;
     le[0] |= 0x01;
@@ -103,7 +109,7 @@ static BOOL miller_rabin(const CRsaBigInt2048 & n, INT32 rounds)
         CRsaBigInt2048 a;
         do
         {
-            random.Fill(rnd, sizeof(rnd));
+            secure_random(rnd, sizeof(rnd));
             a.fromBytesLE(rnd, sizeof(rnd));
         }
         while ( a < CRsaBigInt2048::Two || a > n_minus_2 );
@@ -239,7 +245,7 @@ static BOOL emsa_pss_encode_sha256(UINT8 * EM, SIZE_T emLen, const UINT8 * m, SI
     }
     secure_zero(EM, psLen);
     EM[psLen] = 0x01;
-    random.Fill(EM + psLen + 1, saltLen);
+    secure_random(EM + psLen + 1, saltLen);
     sha.Update(EM + psLen + 1, saltLen);
 
     UINT8 H[32];

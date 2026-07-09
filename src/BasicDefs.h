@@ -20,6 +20,7 @@
    You also need macros below to be defined properly
     TRUE    FALSE
     NULL
+    MAX     MIN
  */
 
 #include <basetsd.h>
@@ -39,6 +40,14 @@
 #else
 #define NULL            ((void *)0)
 #endif
+#endif
+
+#ifndef MAX
+#define MAX(a, b)   ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef MIN
+#define MIN(a, b)   ((a) < (b) ? (a) : (b))
 #endif
 
 /* Following function must be declared properly for your environment

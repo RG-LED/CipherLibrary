@@ -14,6 +14,7 @@
 
 VOID secure_zero(VOID * p, SIZE_T n);
 BOOL secure_equal(const VOID * p, const VOID * q, SIZE_T n);
+VOID secure_random(VOID * p, SIZE_T n);
 
 #endif // _SECURE_H_
 

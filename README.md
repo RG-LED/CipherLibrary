@@ -57,6 +57,7 @@ If you found any bug or have any comment or request, please let me know.
 - SHA3-224/256/384/512
 - SHAKE-128/256
 - SipHash/HalfSipHash
+- TLS 1.3
 - X25519
 - X448
 - XChaCha20

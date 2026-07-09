@@ -10,10 +10,9 @@
 #if !defined(_HKDF_H_)
 #define _HKDF_H_
 
-#include "BasicDefs.h"
-#include "secure.h"
-
+#include "hmac.h"
 #include "sha256.h"
+#include "secure.h"
 
 
 template<typename HASH>
@@ -25,6 +24,8 @@ public:
     CHkdf() { secure_zero(m_prk, sizeof(m_prk)); };
     ~CHkdf() { secure_zero(m_prk, sizeof(m_prk)); };
     CHkdf(const UINT8 * salt, SIZE_T saltlen, const UINT8 * ikm, SIZE_T ikmlen) { Initialize(salt, saltlen, ikm, ikmlen); }
+
+    VOID SetPrk(const UINT8 * prk) { memcpy(m_prk, prk, sizeof(m_prk)); }
 
     VOID Initialize(const UINT8 * salt, SIZE_T saltlen, const UINT8 * ikm, SIZE_T ikmlen)
     {
