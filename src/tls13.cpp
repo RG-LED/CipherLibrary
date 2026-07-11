@@ -11,12 +11,17 @@
 #include "x25519.h"
 #include "ecdh.h"
 #include "hkdf.h"
-#include "aesgcm.h"
 #include "rsa2048.h"
 #include "ecdsa.h"
 #include "ed25519.h"
 #include "hmac.h"
 #include "secure.h"
+
+#if USE_CHACHA20POLY1305
+#include "chacha20poly1305.h"
+#else
+#include "aesgcm.h"
+#endif
 
 #define READ16(p)       (((p)[0] << 8) | (p)[1])
 #define READ24(p)       (((p)[0] << 16) | ((p)[1] << 8) | (p)[2])
@@ -199,7 +204,11 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
         0x00,           //   length (no ID)
                         // cipher suites
         0x00, 0x02,     //   length
+#if USE_CHACHA20POLY1305
+        0x13, 0x03,     //   TLS_CHACHA20_POLY1305_SHA256
+#else
         0x13, 0x01,     //   TLS_AES_128_GCM_SHA256
+#endif
                         // compression methods
         0x01,           //   length
         0x00            //   null
@@ -232,8 +241,8 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
         0x00, 0x0a,     //     supported_groups
         0x00, 0x06,     //     length = 6 (= 2 + 4)
         0x00, 0x04,     //     named group list length = 4
-        0x00, 0x1d,     //     x25519
         0x00, 0x17,     //     secp256r1
+        0x00, 0x1d,     //     x25519
                         //   extension #4
         0x00, 0x0d,     //     signature_algorithms
         0x00, 0x08,     //     length = 6 (= 2 + 4)
@@ -333,13 +342,13 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
 {
     PacketHeader * pk = (PacketHeader *)msg;
     if ( m_phase != SendingFinished ||
-         &msg[len] < &pk->MessageBody[HASH_LENGTH + 1] + TAG_LENGTH )
+         &msg[len] < &pk->MessageBody[HASH_SIZE + 1] + TAG_SIZE )
     {
         SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
         return FALSE;
     }
 
-    UINT8 hash[HASH_LENGTH];
+    UINT8 hash[HASH_SIZE];
     CSha256 sha = m_transHash;
     CHmac<CSha256> hmac;
 
@@ -352,7 +361,7 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
     pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
     pk->Record.ProtocolVersion[1] = 0x03;
     pk->Record.RecordLength[0] = 0x00;          // size
-    pk->Record.RecordLength[1] = 0x25 + TAG_LENGTH; // 5 + 32 + 1 + 16
+    pk->Record.RecordLength[1] = 0x25 + TAG_SIZE; // 5 + 32 + 1 + 16
     pk->Handshake.HandshakeType = 0x14;         // Finished(client)
     pk->Handshake.HandshakeLength[0] = 0x00;    // size
     pk->Handshake.HandshakeLength[1] = 0x00;
@@ -369,7 +378,7 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
 
     EncryptPacket(msg, len);
 
-    len += TAG_LENGTH;
+    len += TAG_SIZE;
 
     PrepareEncryption2(hash);
 
@@ -435,7 +444,7 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
                 break;
 
             case 0x17:  // ApplicationData
-                if ( size <= sizeof(RecordHeader) + TAG_LENGTH )
+                if ( size <= sizeof(RecordHeader) + TAG_SIZE )
                 {
                     SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
                     return FALSE;
@@ -445,7 +454,7 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
                     SendAlert(ALERT_FATAL, ALERT_BAD_RECORD_MAC);
                     return FALSE;
                 }
-                contents -= TAG_LENGTH + 1;
+                contents -= TAG_SIZE + 1;
                 while ( contents >= sizeof(RecordHeader) && p[contents] == 0x00 )
                 {
                     contents--;
@@ -545,7 +554,7 @@ BOOL CTls13::BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msg
 {
     PacketHeader * pk = (PacketHeader *)out;
 
-    SIZE_T n = sizeof(RecordHeader) + msglen + 1 + TAG_LENGTH;
+    SIZE_T n = sizeof(RecordHeader) + msglen + 1 + TAG_SIZE;
     if ( len < n )
     {
         SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
@@ -559,14 +568,14 @@ BOOL CTls13::BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msg
     memcpy(&out[sizeof(RecordHeader)], msg, msglen);
     out[sizeof(RecordHeader) + msglen] = 0x17;           // ApplicationData
 
-    n = msglen + 1 + TAG_LENGTH;
+    n = msglen + 1 + TAG_SIZE;
     pk->Record.RecordLength[0] = (UINT8)(n >> 8);
     pk->Record.RecordLength[1] = (UINT8)n;
 
     len = sizeof(RecordHeader) + msglen + 1;
     EncryptPacket(out, len);
 
-    len += TAG_LENGTH;
+    len += TAG_SIZE;
 
     return TRUE;
 }
@@ -679,7 +688,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                 }
                 else
                 {
-                    if ( size < 32 + 2 + 2 || extlen < size )
+                    if ( size < HASH_SIZE + 2 + 2 || extlen < size )
                     {
                         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
                         return FALSE;
@@ -738,7 +747,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
 
     if ( retry )
     {
-        UINT8 hash[HASH_LENGTH];
+        UINT8 hash[HASH_SIZE];
         m_transHash.Finish(hash);
         m_transHash.Initialize();
         m_transHash.Update((const UINT8 *)"\xfe\x00\x00\x00", 4);
@@ -877,7 +886,7 @@ BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
         return FALSE;
     }
 
-    UINT8 hash[64 + 33 + 1 + HASH_LENGTH];
+    UINT8 hash[64 + 33 + 1 + HASH_SIZE];
     for ( INT32 i = 0; i < 64; i++ )
     {
         hash[i] = 0x20; // ' '
@@ -1003,7 +1012,7 @@ BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T len)
     }
 
     CHmac<CSha256> hmac;
-    UINT8 hash[HASH_LENGTH];
+    UINT8 hash[HASH_SIZE];
 
     CSha256 sha = m_transHash;
     sha.Finish(hash);
@@ -1031,7 +1040,6 @@ BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T len)
 
 BOOL CTls13::EncryptPacket(UINT8 * msg, SIZE_T len)
 {
-    CAesGcm aes;
     UINT8 vec[sizeof(m_clientIV)];
 
     memcpy(vec, m_clientIV, sizeof(vec));
@@ -1041,6 +1049,19 @@ BOOL CTls13::EncryptPacket(UINT8 * msg, SIZE_T len)
     }
     m_sendSequence++;
 
+#if USE_CHACHA20POLY1305
+    CChacha20Poly1305 chacha;
+
+    chacha.Initialize(m_clientKey, vec);
+    chacha.UpdateAad(msg, sizeof(RecordHeader));
+    msg += sizeof(RecordHeader);
+    len -= sizeof(RecordHeader);
+    chacha.Encrypt(m_buf, msg, len);
+    memcpy(msg, m_buf, len);
+    chacha.Finish(&msg[len]);
+#else
+    CAesGcm aes;
+
     aes.SetKeys(m_clientKey, sizeof(m_clientKey));
     aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
     msg += sizeof(RecordHeader);
@@ -1049,6 +1070,7 @@ BOOL CTls13::EncryptPacket(UINT8 * msg, SIZE_T len)
     aes.Finalize();
     memcpy(msg, m_buf, len);
     aes.GetTag(&msg[len]);
+#endif
 
     return TRUE;
 }
@@ -1056,7 +1078,6 @@ BOOL CTls13::EncryptPacket(UINT8 * msg, SIZE_T len)
 
 BOOL CTls13::DecryptPacket(UINT8 * msg, SIZE_T len)
 {
-    CAesGcm aes;
     UINT8 vec[sizeof(m_serverIV)];
 
     memcpy(vec, m_serverIV, sizeof(vec));
@@ -1066,15 +1087,31 @@ BOOL CTls13::DecryptPacket(UINT8 * msg, SIZE_T len)
     }
     m_receiveSequence++;
 
+#if USE_CHACHA20POLY1305
+    CChacha20Poly1305 chacha;
+
+    chacha.Initialize(m_serverKey, vec);
+    chacha.UpdateAad(msg, sizeof(RecordHeader));
+    msg += sizeof(RecordHeader);
+    len -= sizeof(RecordHeader) + TAG_SIZE;
+    BOOL ret = chacha.VerifyAndDecrypt(m_buf, msg, len, &msg[len]);
+    memcpy(msg, m_buf, len);
+
+    return ret;
+#else
+    CAesGcm aes;
+
     aes.SetKeys(m_serverKey, sizeof(m_serverKey));
     aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
-    aes.SetTag(&msg[len - TAG_LENGTH]);
     msg += sizeof(RecordHeader);
-    len -= sizeof(RecordHeader);
-    aes.Decrypt(m_buf, msg, len - TAG_LENGTH);
+    len -= sizeof(RecordHeader) + TAG_SIZE;
+    aes.SetTag(&msg[len]);
+    aes.Decrypt(m_buf, msg, len);
     aes.Finalize();
-    memcpy(msg, m_buf, len - TAG_LENGTH);
+    memcpy(msg, m_buf, len);
+
     return aes.CheckTag();
+#endif
 }
 
 
@@ -1090,13 +1127,13 @@ VOID CTls13::PrepareEncryption()
             break;
     }
 
-    UINT8 info[64];   // length + label_len + label + context_len
-    UINT8 handshake[32];
-    UINT8 chs[32];
-    UINT8 shs[32];
-    UINT8 trans_hash[HASH_LENGTH];
-    UINT8 zero_hash[HASH_LENGTH];
-    UINT8 zero[32] = { 0 };
+    UINT8 info[2 + 1 + 20 + 1 + HASH_SIZE];   // length + label_len + label + context_len + context
+    UINT8 handshake[HASH_SIZE];
+    UINT8 chs[HASH_SIZE];
+    UINT8 shs[HASH_SIZE];
+    UINT8 trans_hash[HASH_SIZE];
+    UINT8 zero_hash[HASH_SIZE];
+    UINT8 zero[HASH_SIZE] = { 0 };
     SIZE_T len;
 
     CSha256 sha = m_transHash;
@@ -1105,7 +1142,7 @@ VOID CTls13::PrepareEncryption()
     sha.Initialize();
     sha.Finish(zero_hash);
 
-    CHkdfSha256 hkdf;
+    CHkdf<CSha256> hkdf;
 
     hkdf.Initialize(zero, sizeof(zero), zero, sizeof(zero));
     len = MakeLabel(info, sizeof(handshake), "derived", zero_hash, sizeof(zero_hash));
@@ -1142,18 +1179,18 @@ VOID CTls13::PrepareEncryption()
 
 VOID CTls13::PrepareEncryption2(const UINT8 * trans_hash)
 {
-    UINT8 info[64];   // length + label_len + label + context_len
-    UINT8 cap[32];
-    UINT8 sap[32];
-    UINT8 zero[32] = { 0 };
+    UINT8 info[2 + 1 + 20 + 1 + HASH_SIZE];   // length + label_len + label + context_len + context
+    UINT8 cap[HASH_SIZE];
+    UINT8 sap[HASH_SIZE];
+    UINT8 zero[HASH_SIZE] = { 0 };
     SIZE_T len;
 
-    CHkdfSha256 hkdf;
+    CHkdf<CSha256> hkdf;
 
     hkdf.Initialize(m_derivedSecret, sizeof(m_derivedSecret), zero, sizeof(zero));
-    len = MakeLabel(info, sizeof(cap), "c ap traffic", trans_hash, HASH_LENGTH);
+    len = MakeLabel(info, sizeof(cap), "c ap traffic", trans_hash, HASH_SIZE);
     hkdf.DeriveKey(info, len, cap, sizeof(cap));
-    len = MakeLabel(info, sizeof(sap), "s ap traffic", trans_hash, HASH_LENGTH);
+    len = MakeLabel(info, sizeof(sap), "s ap traffic", trans_hash, HASH_SIZE);
     hkdf.DeriveKey(info, len, sap, sizeof(sap));
 
     hkdf.SetPrk(cap);

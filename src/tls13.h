@@ -12,6 +12,8 @@
 
 #include "Sha256.h"
 
+#define USE_CHACHA20POLY1305    1
+
 typedef VOID (*TLS_CALLBACK)(INT32 id, const UINT8 * p, SIZE_T len);
 
 class CTls13
@@ -46,8 +48,13 @@ public:
     BOOL BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msglen);
 
 private:
-    static constexpr SIZE_T TAG_LENGTH = 16;
-    static constexpr SIZE_T HASH_LENGTH = 32;
+#if USE_CHACHA20POLY1305
+    static constexpr SIZE_T CIPHER_KEYSIZE = 32;
+#else
+    static constexpr SIZE_T CIPHER_KEYSIZE = 16;
+#endif
+    static constexpr SIZE_T HASH_SIZE = 32;
+    static constexpr SIZE_T TAG_SIZE = 16;
     static constexpr SIZE_T X25519_PV_KEYSIZE = 32;
     static constexpr SIZE_T X25519_PB_KEYSIZE = 32;
     static constexpr SIZE_T SECP256_PV_KEYSIZE = 32;
@@ -102,23 +109,23 @@ private:
     UINT8 m_privateKey[PV_KEYSIZE];
     UINT8 m_clientPublicKey[PB_KEYSIZE];
     UINT8 m_serverPublicKey[PB_KEYSIZE];
-    UINT8 m_sharedSecret[32];
-    UINT8 m_derivedSecret[32];
+    UINT8 m_sharedSecret[HASH_SIZE];
+    UINT8 m_derivedSecret[HASH_SIZE];
 
     UINT64 m_sendSequence;
     UINT64 m_receiveSequence;
-    UINT8 m_clientKey[16];
+    UINT8 m_clientKey[CIPHER_KEYSIZE];
     UINT8 m_clientIV[12];
-    UINT8 m_serverKey[16];
+    UINT8 m_serverKey[CIPHER_KEYSIZE];
     UINT8 m_serverIV[12];
 
     UINT8 m_cookie[256];
     UINT8 m_certPublicKey1[256];
-    UINT8 m_certPublicKey2[32];
+    UINT8 m_certPublicKey2[HASH_SIZE];
     SIZE_T m_certKeyLength1;
     SIZE_T m_certKeyLength2;
-    UINT8 m_serverFinishedKey[32];
-    UINT8 m_clientFinishedKey[32];
+    UINT8 m_serverFinishedKey[HASH_SIZE];
+    UINT8 m_clientFinishedKey[HASH_SIZE];
     enum { RSA, ECDSA, ED25519 } m_certAlgorithm;
 
     CSha256 m_transHash;
