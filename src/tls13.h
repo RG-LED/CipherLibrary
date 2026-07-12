@@ -10,9 +10,16 @@
 #if !defined(_TLS13_H_)
 #define _TLS13_H_
 
+#include "Sha384.h"
 #include "Sha256.h"
 
-#define USE_CHACHA20POLY1305    1
+#define KEY_EXCHANGE_GROUP  1   // 0=X25519, 1=Secp256r1, 2=Secp384r1
+
+#if KEY_EXCHANGE_GROUP == 2
+#define HASH_CLASS  CSha384
+#else
+#define HASH_CLASS  CSha256
+#endif
 
 typedef VOID (*TLS_CALLBACK)(INT32 id, const UINT8 * p, SIZE_T len);
 
@@ -42,25 +49,34 @@ public:
     BOOL StartConnection(TLS_CALLBACK receiver, TLS_CALLBACK sender, UINT32 id);
 
     Phase CurrentPhase() const { return m_phase; }
+    UINT32 GetAlertDetail() const { return m_alertDetail; } // 0x10000 means client side
 
     BOOL ProcessReceivedMessage(UINT8 * msg, SIZE_T & len); // msg will be overwritten
 
     BOOL BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msglen);
 
 private:
-#if USE_CHACHA20POLY1305
-    static constexpr SIZE_T CIPHER_KEYSIZE = 32;
+    static constexpr SIZE_T CIPHER_AES128_KEYSIZE = 16;
+    static constexpr SIZE_T CIPHER_AES256_KEYSIZE = 32;
+    static constexpr SIZE_T CIPHER_CHACHA20_KEYSIZE = 32;
+    static constexpr SIZE_T CIPHER_MAX_KEYSIZE = 32;
+
+#if KEY_EXCHANGE_GROUP == 2
+    static constexpr SIZE_T HASH_SIZE = 48;
 #else
-    static constexpr SIZE_T CIPHER_KEYSIZE = 16;
-#endif
     static constexpr SIZE_T HASH_SIZE = 32;
+#endif
+
     static constexpr SIZE_T TAG_SIZE = 16;
+
     static constexpr SIZE_T X25519_PV_KEYSIZE = 32;
     static constexpr SIZE_T X25519_PB_KEYSIZE = 32;
     static constexpr SIZE_T SECP256_PV_KEYSIZE = 32;
     static constexpr SIZE_T SECP256_PB_KEYSIZE = 65;
-    static constexpr SIZE_T PB_KEYSIZE = MAX(X25519_PB_KEYSIZE, SECP256_PB_KEYSIZE);
-    static constexpr SIZE_T PV_KEYSIZE = MAX(X25519_PV_KEYSIZE, SECP256_PV_KEYSIZE);
+    static constexpr SIZE_T SECP384_PV_KEYSIZE = 48;
+    static constexpr SIZE_T SECP384_PB_KEYSIZE = 97;
+    static constexpr SIZE_T PB_KEYSIZE = MAX(X25519_PB_KEYSIZE, MAX(SECP256_PB_KEYSIZE, SECP384_PB_KEYSIZE));
+    static constexpr SIZE_T PV_KEYSIZE = MAX(X25519_PV_KEYSIZE, MAX(SECP256_PV_KEYSIZE, SECP384_PV_KEYSIZE));
 
     VOID Reset();
     BOOL SendClientHello();
@@ -74,14 +90,14 @@ private:
     BOOL DecryptPacket(UINT8 * msg, SIZE_T len);   // msg will be overwritten
 
     BOOL ProcessHandshake(const UINT8 * msg, SIZE_T len);
-    BOOL ParseServerHello(const UINT8 * msg, SIZE_T len);
+    INT32 ParseServerHello(const UINT8 * msg, SIZE_T len);
     BOOL ParseEncryptedExtension(const UINT8 * msg, SIZE_T len);
     BOOL ParseCertificate(const UINT8 * msg, SIZE_T len);
     BOOL ParseCertificateVerify(const UINT8 * msg, SIZE_T len);
     BOOL ParseFinished(const UINT8 * msg, SIZE_T len);
 
     BOOL ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len);
-    VOID PrepareEncryption();
+    BOOL PrepareEncryption();
     VOID PrepareEncryption2(const UINT8 * trans_hash);
     SIZE_T MakeLabel(UINT8 * out, SIZE_T outlen, const CHAR8 * label, const UINT8 * context = NULL, SIZE_T ctxlen = 0);
 
@@ -100,7 +116,10 @@ private:
     BOOL ExtractEd25519PublicKey(const UINT8 * p, SIZE_T len);
 
     Phase m_phase;
-    enum { X25519, Secp256r1 } m_keyExchange;
+    enum { X25519, Secp256r1, Secp384r1 } m_keyExchange;
+    enum { RSA, ECDSA256, ECDSA384, ED25519 } m_certAlgorithm;
+    enum { AES128GCM, AES256GCM, CHACHA20POLY1305 } m_cipherSuite;
+    UINT32 m_alertDetail;
 
     TLS_CALLBACK m_receiverFunc;
     TLS_CALLBACK m_senderFunc;
@@ -111,13 +130,15 @@ private:
     UINT8 m_serverPublicKey[PB_KEYSIZE];
     UINT8 m_sharedSecret[HASH_SIZE];
     UINT8 m_derivedSecret[HASH_SIZE];
+    SIZE_T m_privateKeySize;
 
     UINT64 m_sendSequence;
     UINT64 m_receiveSequence;
-    UINT8 m_clientKey[CIPHER_KEYSIZE];
+    UINT8 m_clientKey[CIPHER_MAX_KEYSIZE];
     UINT8 m_clientIV[12];
-    UINT8 m_serverKey[CIPHER_KEYSIZE];
+    UINT8 m_serverKey[CIPHER_MAX_KEYSIZE];
     UINT8 m_serverIV[12];
+    SIZE_T m_cipherKeySize;
 
     UINT8 m_cookie[256];
     UINT8 m_certPublicKey1[256];
@@ -126,9 +147,8 @@ private:
     SIZE_T m_certKeyLength2;
     UINT8 m_serverFinishedKey[HASH_SIZE];
     UINT8 m_clientFinishedKey[HASH_SIZE];
-    enum { RSA, ECDSA, ED25519 } m_certAlgorithm;
 
-    CSha256 m_transHash;
+    HASH_CLASS m_transHash;
     UINT8 m_buf[16 * 1024]; // buffer for encryption / decryption (may be smaller in most cases)
 };
 

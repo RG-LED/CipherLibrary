@@ -12,16 +12,12 @@
 #include "ecdh.h"
 #include "hkdf.h"
 #include "rsa2048.h"
+#include "chacha20poly1305.h"
+#include "aesgcm.h"
 #include "ecdsa.h"
 #include "ed25519.h"
 #include "hmac.h"
 #include "secure.h"
-
-#if USE_CHACHA20POLY1305
-#include "chacha20poly1305.h"
-#else
-#include "aesgcm.h"
-#endif
 
 #define READ16(p)       (((p)[0] << 8) | (p)[1])
 #define READ24(p)       (((p)[0] << 16) | ((p)[1] << 8) | (p)[2])
@@ -66,8 +62,20 @@ CTls13::~CTls13()
 VOID CTls13::Reset()
 {
     m_phase = SendingClientHello;
-    m_keyExchange = Secp256r1; // X25519;
+#if KEY_EXCHANGE_GROUP == 0
+    m_keyExchange = X25519;
+    m_privateKeySize = X25519_PV_KEYSIZE;
+#elif KEY_EXCHANGE_GROUP == 1
+    m_keyExchange = Secp256r1;
+    m_privateKeySize = SECP256_PV_KEYSIZE;
+#elif KEY_EXCHANGE_GROUP == 2
+    m_keyExchange = Secp384r1;
+    m_privateKeySize = SECP384_PV_KEYSIZE;
+#else
+#error "Key exchange is not properly decided."
+#endif
     m_transHash.Initialize();
+    m_alertDetail = 0;
 }
 
 
@@ -140,7 +148,7 @@ BOOL CTls13::SendClientHello()
 
 BOOL CTls13::SendClientFinished()
 {
-    UINT8 msg[64];
+    UINT8 msg[HASH_SIZE * 2];
     SIZE_T len = sizeof(msg);
 
     if ( !MakeClientFinished(msg, len) )
@@ -174,6 +182,8 @@ BOOL CTls13::SendAlert(INT32 level, INT32 desc)
     msg[sizeof(RecordHeader)] = (UINT8)level;
     msg[sizeof(RecordHeader) + 1] = (UINT8)desc;
 
+    m_alertDetail = READ16(&msg[sizeof(RecordHeader)]) | 0x10000;
+
     if ( m_phase >= ReceivingServerHello )
     {
         pk->Record.ContentType = 0x16;              // Handshake
@@ -203,10 +213,12 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
                         // legacy session ID
         0x00,           //   length (no ID)
                         // cipher suites
+#if KEY_EXCHANGE_GROUP == 2
         0x00, 0x02,     //   length
-#if USE_CHACHA20POLY1305
-        0x13, 0x03,     //   TLS_CHACHA20_POLY1305_SHA256
+        0x13, 0x02,     //   TLS_AES_256_GCM_SHA384
 #else
+        0x00, 0x04,     //   length
+        0x13, 0x03,     //   TLS_CHACHA20_POLY1305_SHA256
         0x13, 0x01,     //   TLS_AES_128_GCM_SHA256
 #endif
                         // compression methods
@@ -220,14 +232,16 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
         0x02,           //     versions length
         0x03, 0x04      //     TLS 1.3
     };
-    static const UINT8 tmpl3_x25519[] = {
+#if KEY_EXCHANGE_GROUP == 2
+    static const UINT8 tmpl3_secp384r1[] = {
                         //   extension #2
         0x00, 0x33,     //     key share
-        0x00, 0x26,     //     length = 38 (= 2 + 36)
-        0x00, 0x24,     //     client_shares_length = 36
-        0x00, 0x1d,     //     group = x25519
-        0x00, 0x20      //     key_exchange_length = 32
+        0x00, 0x67,     //     length = 103 (= 2 + 101)
+        0x00, 0x65,     //     client_shares_length = 101
+        0x00, 0x18,     //     group = secp384r1
+        0x00, 0x61      //     key_exchange_length = 97
     };
+#else
     static const UINT8 tmpl3_secp256r1[] = {
                         //   extension #2
         0x00, 0x33,     //     key share
@@ -236,27 +250,66 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
         0x00, 0x17,     //     group = secp256r1
         0x00, 0x41      //     key_exchange_length = 65
     };
+    static const UINT8 tmpl3_x25519[] = {
+                        //   extension #2
+        0x00, 0x33,     //     key share
+        0x00, 0x26,     //     length = 38 (= 2 + 36)
+        0x00, 0x24,     //     client_shares_length = 36
+        0x00, 0x1d,     //     group = x25519
+        0x00, 0x20      //     key_exchange_length = 32
+    };
+#endif
     static const UINT8 tmpl4[] = {
                         //   extension #3
         0x00, 0x0a,     //     supported_groups
+#if KEY_EXCHANGE_GROUP == 2
+        0x00, 0x04,     //     length = 6 (= 2 + 4)
+        0x00, 0x02,     //     named group list length = 4
+        0x00, 0x18,     //     secp384r1
+#else
         0x00, 0x06,     //     length = 6 (= 2 + 4)
         0x00, 0x04,     //     named group list length = 4
         0x00, 0x17,     //     secp256r1
         0x00, 0x1d,     //     x25519
+#endif
                         //   extension #4
         0x00, 0x0d,     //     signature_algorithms
+#if KEY_EXCHANGE_GROUP == 2
+        0x00, 0x04,     //     length = 4 (= 2 + 2)
+        0x00, 0x02,     //     list length = 2
+        0x05, 0x03      //     ecdsa_secp384r1_sha384
+#else
         0x00, 0x08,     //     length = 6 (= 2 + 4)
         0x00, 0x06,     //     list length = 4
         0x08, 0x04,     //     rsa_pss_rsae_sha256
         0x04, 0x03,     //     ecdsa_secp256r1_sha256
         0x08, 0x07      //     ed25519
+#endif
     };
+
+    SIZE_T kexlen;
+
+    switch ( m_keyExchange )
+    {
+#if KEY_EXCHANGE_GROUP == 2
+        case Secp384r1:
+               kexlen = sizeof(tmpl3_secp384r1) + SECP384_PB_KEYSIZE;
+               break;
+#else
+        case Secp256r1:
+               kexlen = sizeof(tmpl3_secp256r1) + SECP256_PB_KEYSIZE;
+               break;
+        case X25519:
+               kexlen = sizeof(tmpl3_x25519) + X25519_PB_KEYSIZE;
+               break;
+#endif
+        default:
+            return FALSE;
+    }
 
     if ( m_phase != SendingClientHello ||
          len < sizeof(PacketHeader) + sizeof(tmpl1) + sizeof(tmpl2) + 2 /* extension length */ +
-               ( m_keyExchange == X25519 ? sizeof(tmpl3_x25519) + X25519_PB_KEYSIZE
-                                         : sizeof(tmpl3_secp256r1) + SECP256_PB_KEYSIZE) +
-               sizeof(tmpl4) )
+               kexlen + sizeof(tmpl4) )
     {
         SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
         return FALSE;
@@ -290,6 +343,19 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
 
     switch ( m_keyExchange )
     {
+#if KEY_EXCHANGE_GROUP == 2
+        case Secp384r1:
+            memcpy(&msg[offset], tmpl3_secp384r1, sizeof(tmpl3_secp384r1));
+            offset += sizeof(tmpl3_secp384r1);
+            do
+            {
+                secure_random(m_privateKey, SECP384_PV_KEYSIZE);
+            }
+            while ( !CEcdh<EcCurve::P384>::PrivateKeyToPublicKey(m_clientPublicKey, m_privateKey) );
+            memcpy(&msg[offset], m_clientPublicKey, SECP384_PB_KEYSIZE);
+            offset += SECP384_PB_KEYSIZE;
+            break;
+#else
         case X25519:
             memcpy(&msg[offset], tmpl3_x25519, sizeof(tmpl3_x25519));
             offset += sizeof(tmpl3_x25519);
@@ -310,7 +376,7 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
             memcpy(&msg[offset], m_clientPublicKey, SECP256_PB_KEYSIZE);
             offset += SECP256_PB_KEYSIZE;
             break;
-
+#endif
         default:
             SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
             return FALSE;
@@ -349,8 +415,8 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
     }
 
     UINT8 hash[HASH_SIZE];
-    CSha256 sha = m_transHash;
-    CHmac<CSha256> hmac;
+    HASH_CLASS sha = m_transHash;
+    CHmac<HASH_CLASS> hmac;
 
     sha.Finish(hash);
     hmac.Initialize(m_clientFinishedKey, sizeof(m_clientFinishedKey));
@@ -361,15 +427,15 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
     pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
     pk->Record.ProtocolVersion[1] = 0x03;
     pk->Record.RecordLength[0] = 0x00;          // size
-    pk->Record.RecordLength[1] = 0x25 + TAG_SIZE; // 5 + 32 + 1 + 16
+    pk->Record.RecordLength[1] = sizeof(HandshakeHeader) + HASH_SIZE + 1 + TAG_SIZE; // 4 + 32 + 1 + 16
     pk->Handshake.HandshakeType = 0x14;         // Finished(client)
     pk->Handshake.HandshakeLength[0] = 0x00;    // size
     pk->Handshake.HandshakeLength[1] = 0x00;
-    pk->Handshake.HandshakeLength[2] = 0x20;
+    pk->Handshake.HandshakeLength[2] = HASH_SIZE;
     memcpy(pk->MessageBody, hash, sizeof(hash));
     pk->MessageBody[sizeof(hash)] = 0x16;       // Handshake
 
-    len = sizeof(RecordHeader) + 0x25;
+    len = sizeof(RecordHeader) + sizeof(HandshakeHeader) + HASH_SIZE + 1;
 
     sha = m_transHash;
     sha.Finish(hash);
@@ -433,6 +499,7 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
                 else
                 {
                     m_phase = Error;
+                    m_alertDetail = READ16(&p[sizeof(RecordHeader)]);
                 }
                 return FALSE;
 
@@ -486,6 +553,10 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
     {
         return SendClientFinished();
     }
+    if ( m_phase == SendingClientHello )
+    {
+        return SendClientHello();
+    }
     return TRUE;
 }
 
@@ -496,12 +567,19 @@ BOOL CTls13::ProcessHandshake(const UINT8 * msg, SIZE_T len)
     switch ( pk->Handshake.HandshakeType )
     {
         case 0x02:  // ServerHello
-            if ( !ParseServerHello(msg, len) )
             {
-                return FALSE;
+                INT32 ret = ParseServerHello(msg, len);
+                if ( ret < 0 )
+                {
+                    return FALSE;
+                }
+                m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
+                if ( ret > 0 && !PrepareEncryption() )
+                {
+                    SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+                    return FALSE;
+                }
             }
-            m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-            PrepareEncryption();
             break;
 
         case 0x08:  // EncryptedExtensions
@@ -581,7 +659,7 @@ BOOL CTls13::BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msg
 }
 
 
-BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
+INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
 {
     static const UINT8 HelloRetryRequest[] = {
         0xcf, 0x21, 0xad, 0x74, 0xe5, 0x9a, 0x61, 0x11, 0xbe, 0x1d, 0x8c, 0x02, 0x1e, 0x65, 0xb8, 0x91,
@@ -591,13 +669,13 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
     if ( m_phase != ReceivingServerHello )
     {
         SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
-        return FALSE;
+        return -1;
     }
 
     if ( len < sizeof(PacketHeader) + 1 )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-        return FALSE;
+        return -1;
     }
 
     const PacketHeader * pk = (const PacketHeader *)msg;
@@ -606,7 +684,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
          pk->Hello.ProtocolVersion[1] != 0x03 )
     {
         SendAlert(ALERT_FATAL, ALERT_PROTOCOL_VERSION);
-        return FALSE;
+        return -1;
     }
 
     BOOL retry = (memcmp(pk->Hello.Random, HelloRetryRequest, sizeof(pk->Hello.Random)) == 0);
@@ -616,18 +694,36 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
     if ( len < sizeof(PacketHeader) )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-        return FALSE;
+        return -1;
     }
 
     SIZE_T n = msg[offset++];   // legacy session ID length
     offset += n;    // skip legacy session ID
+    switch ( READ16(&msg[offset]) )
+    {
+        case 0x1301:    // TLS_AES_128_GCM_SHA256
+            m_cipherSuite = AES128GCM;
+            m_cipherKeySize = CIPHER_AES128_KEYSIZE;
+            break;
+        case 0x1302:    // TLS_AES_256_GCM_SHA384
+            m_cipherSuite = AES256GCM;
+            m_cipherKeySize = CIPHER_AES256_KEYSIZE;
+            break;
+        case 0x1303:    // TLS_CHACHA20_POLY1305_SHA256
+            m_cipherSuite = CHACHA20POLY1305;
+            m_cipherKeySize = CIPHER_CHACHA20_KEYSIZE;
+            break;
+        default:
+            SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
+            return -1;
+    }
     offset += 2;    // skip cipher suite
     offset++;       // skip compression method
 
     if ( len < offset + 2 )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-        return FALSE;
+        return -1;
     }
 
     INT32 extlen = READ16(&msg[offset]);  // extensions length
@@ -636,7 +732,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
     if ( len < offset + extlen )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-        return FALSE;
+        return -1;
     }
 
     const UINT8 * extension = &msg[offset];
@@ -659,7 +755,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                 if ( size != 2 || extlen < 2 || READ16(extension) != 0x0304 )
                 {
                     SendAlert(ALERT_FATAL, ALERT_PROTOCOL_VERSION);
-                    return FALSE;
+                    return -1;
                 }
                 extension += 2;
                 extlen -= 2;
@@ -674,15 +770,24 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                     extlen -= 2;
                     switch ( group )
                     {
+#if KEY_EXCHANGE_GROUP == 2
+                        case 0x0018:    // secp384r1
+                            m_keyExchange = Secp384r1;
+                            m_privateKeySize = SECP384_PV_KEYSIZE;
+                            break;
+#else
                         case 0x0017:    // secp256r1
                             m_keyExchange = Secp256r1;
+                            m_privateKeySize = SECP256_PV_KEYSIZE;
                             break;
                         case 0x001d:    // x25519
                             m_keyExchange = X25519;
+                            m_privateKeySize = X25519_PV_KEYSIZE;
                             break;
+#endif
                         default:
                             SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-                            return FALSE;
+                            return -1;
                     }
                     gotKeyshare = TRUE;
                 }
@@ -691,7 +796,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                     if ( size < HASH_SIZE + 2 + 2 || extlen < size )
                     {
                         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-                        return FALSE;
+                        return -1;
                     }
                     UINT32 group = READ16(extension);
                     extension += 2;
@@ -701,15 +806,29 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                     if ( extlen < keylen )
                     {
                         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
-                        return FALSE;
+                        return -1;
                     }
                     switch ( group )
                     {
+#if KEY_EXCHANGE_GROUP == 2
+                        case 0x0018:    // secp384r1
+                            if ( keylen != SECP384_PB_KEYSIZE )
+                            {
+                                SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
+                                return -1;
+                            }
+                            memcpy(m_serverPublicKey, extension, SECP384_PB_KEYSIZE);
+                            extension += SECP384_PB_KEYSIZE;
+                            extlen -= SECP384_PB_KEYSIZE;
+                            m_keyExchange = Secp384r1;
+                            gotKeyshare = TRUE;
+                            break;
+#else
                         case 0x0017:    // secp256r1
                             if ( keylen != SECP256_PB_KEYSIZE )
                             {
                                 SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-                                return FALSE;
+                                return -1;
                             }
                             memcpy(m_serverPublicKey, extension, SECP256_PB_KEYSIZE);
                             extension += SECP256_PB_KEYSIZE;
@@ -722,7 +841,7 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                             if ( keylen != X25519_PB_KEYSIZE )
                             {
                                 SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-                                return FALSE;
+                                return -1;
                             }
                             memcpy(m_serverPublicKey, extension, X25519_PB_KEYSIZE);
                             extension += X25519_PB_KEYSIZE;
@@ -730,10 +849,10 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                             m_keyExchange = X25519;
                             gotKeyshare = TRUE;
                             break;
-
+#endif
                         default:
                             SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-                            return FALSE;
+                            return -1;
                     }
                 }
                 break;
@@ -750,24 +869,29 @@ BOOL CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
         UINT8 hash[HASH_SIZE];
         m_transHash.Finish(hash);
         m_transHash.Initialize();
-        m_transHash.Update((const UINT8 *)"\xfe\x00\x00\x00", 4);
+        UINT8 header[4];
+        header[0] = 0xfe;
+        header[1] = 0x00;
+        header[2] = (UINT8)(HASH_SIZE >> 8);
+        header[3] = (UINT8)HASH_SIZE;
+        m_transHash.Update(header, sizeof(header));
         m_transHash.Update(hash, sizeof(hash));
 
         m_phase = SendingClientHello;
 
         secure_zero(hash, sizeof(hash));
 
-        return SendClientHello();
+        return 0;   // retry
     }
     else if ( !gotSupportedVersion || !gotKeyshare )
     {
         SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-        return FALSE;
+        return -1;
     }
 
     m_phase = ReceivingEncryptedExtensions;
 
-    return TRUE;
+    return 1;   // proceed
 }
 
 
@@ -893,7 +1017,7 @@ BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
     }
     memcpy(hash + 64, "TLS 1.3, server CertificateVerify", 33 + 1); // including '\0'
 
-    CSha256 sha = m_transHash;
+    HASH_CLASS sha = m_transHash;
     sha.Finish(hash + 64 + 33 + 1);
 
     BOOL match = FALSE;
@@ -918,7 +1042,7 @@ BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
             break;
 
         case 0x0403:    // ecdsa_secp256r1_sha256
-            if ( m_certAlgorithm == ECDSA )
+            if ( m_certAlgorithm == ECDSA256 )
             {
                 UINT8 buf[64];
                 if ( ParsePublicKeyEcdsa(buf, sig, siglen ) )
@@ -930,6 +1054,23 @@ BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
                     pub.x.fromBytesBE(m_certPublicKey1, m_certKeyLength1);
                     pub.y.fromBytesBE(m_certPublicKey2, m_certKeyLength2);
                     match = CEcdsa<EcCurve::P256>::VerifyDigest(pub, hash, buf);
+                }
+            }
+            break;
+
+        case 0x0503:    // ecdsa_secp384r1_sha384
+            if ( m_certAlgorithm == ECDSA384 )
+            {
+                UINT8 buf[96];
+                if ( ParsePublicKeyEcdsa(buf, sig, siglen ) )
+                {
+                    sha.Initialize();
+                    sha.Update(hash, sizeof(hash));
+                    sha.Finish(hash);
+                    CEcdsa<EcCurve::P384>::CPublicKey pub;
+                    pub.x.fromBytesBE(m_certPublicKey1, m_certKeyLength1);
+                    pub.y.fromBytesBE(m_certPublicKey2, m_certKeyLength2);
+                    match = CEcdsa<EcCurve::P384>::VerifyDigest(pub, hash, buf);
                 }
             }
             break;
@@ -978,11 +1119,11 @@ BOOL CTls13::ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len)
         node.value++;
         node.length--;
     }
-    if ( node.length > 0x20 )
+    if ( node.length > HASH_SIZE )
     {
         return FALSE;
     }
-    memcpy(out + (0x20 - node.length), node.value, node.length);
+    memcpy(out + (HASH_SIZE - node.length), node.value, node.length);
 
     if ( !ReadAsn1Node(node.next, next, node) || node.tag != 0x02 )
     {
@@ -993,11 +1134,11 @@ BOOL CTls13::ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len)
         node.value++;
         node.length--;
     }
-    if ( node.length > 0x20 )
+    if ( node.length > HASH_SIZE )
     {
         return FALSE;
     }
-    memcpy(out + 0x20 + (0x20 - node.length), node.value, node.length);
+    memcpy(out + HASH_SIZE + (HASH_SIZE - node.length), node.value, node.length);
 
     return TRUE;
 }
@@ -1011,10 +1152,10 @@ BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T len)
         return FALSE;
     }
 
-    CHmac<CSha256> hmac;
+    CHmac<HASH_CLASS> hmac;
     UINT8 hash[HASH_SIZE];
 
-    CSha256 sha = m_transHash;
+    HASH_CLASS sha = m_transHash;
     sha.Finish(hash);
     hmac.Initialize(m_serverFinishedKey, sizeof(m_serverFinishedKey));
     hmac.Update(hash, sizeof(hash));
@@ -1049,28 +1190,42 @@ BOOL CTls13::EncryptPacket(UINT8 * msg, SIZE_T len)
     }
     m_sendSequence++;
 
-#if USE_CHACHA20POLY1305
-    CChacha20Poly1305 chacha;
+    switch ( m_cipherSuite )
+    {
+        case AES128GCM:
+        case AES256GCM:
+            {
+                CAesGcm aes;
 
-    chacha.Initialize(m_clientKey, vec);
-    chacha.UpdateAad(msg, sizeof(RecordHeader));
-    msg += sizeof(RecordHeader);
-    len -= sizeof(RecordHeader);
-    chacha.Encrypt(m_buf, msg, len);
-    memcpy(msg, m_buf, len);
-    chacha.Finish(&msg[len]);
-#else
-    CAesGcm aes;
+                aes.SetKeys(m_clientKey, m_cipherKeySize);
+                aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
+                msg += sizeof(RecordHeader);
+                len -= sizeof(RecordHeader);
+                aes.Encrypt(m_buf, msg, len);
+                aes.Finalize();
+                memcpy(msg, m_buf, len);
+                aes.GetTag(&msg[len]);
+            }
+            break;
 
-    aes.SetKeys(m_clientKey, sizeof(m_clientKey));
-    aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
-    msg += sizeof(RecordHeader);
-    len -= sizeof(RecordHeader);
-    aes.Encrypt(m_buf, msg, len);
-    aes.Finalize();
-    memcpy(msg, m_buf, len);
-    aes.GetTag(&msg[len]);
-#endif
+        case CHACHA20POLY1305:
+            {
+                CChacha20Poly1305 chacha;
+
+                chacha.Initialize(m_clientKey, vec);
+                chacha.UpdateAad(msg, sizeof(RecordHeader));
+                msg += sizeof(RecordHeader);
+                len -= sizeof(RecordHeader);
+                chacha.Encrypt(m_buf, msg, len);
+                memcpy(msg, m_buf, len);
+                chacha.Finish(&msg[len]);
+            }
+            break;
+
+        default:
+            SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+            break;
+    }
 
     return TRUE;
 }
@@ -1087,44 +1242,77 @@ BOOL CTls13::DecryptPacket(UINT8 * msg, SIZE_T len)
     }
     m_receiveSequence++;
 
-#if USE_CHACHA20POLY1305
-    CChacha20Poly1305 chacha;
+    BOOL ret = FALSE;
 
-    chacha.Initialize(m_serverKey, vec);
-    chacha.UpdateAad(msg, sizeof(RecordHeader));
-    msg += sizeof(RecordHeader);
-    len -= sizeof(RecordHeader) + TAG_SIZE;
-    BOOL ret = chacha.VerifyAndDecrypt(m_buf, msg, len, &msg[len]);
-    memcpy(msg, m_buf, len);
+    switch ( m_cipherSuite )
+    {
+        case AES128GCM:
+        case AES256GCM:
+            {
+                CAesGcm aes;
+
+                aes.SetKeys(m_serverKey, m_cipherKeySize);
+                aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
+                msg += sizeof(RecordHeader);
+                len -= sizeof(RecordHeader) + TAG_SIZE;
+                aes.SetTag(&msg[len]);
+                if ( len > sizeof(m_buf) )
+                {
+                    SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+                    return FALSE;
+                }
+                aes.Decrypt(m_buf, msg, len);
+                aes.Finalize();
+                memcpy(msg, m_buf, len);
+                ret = aes.CheckTag();
+            }
+            break;
+
+        case CHACHA20POLY1305:
+            {
+                CChacha20Poly1305 chacha;
+
+                chacha.Initialize(m_serverKey, vec);
+                chacha.UpdateAad(msg, sizeof(RecordHeader));
+                msg += sizeof(RecordHeader);
+                len -= sizeof(RecordHeader) + TAG_SIZE;
+                if ( len > sizeof(m_buf) )
+                {
+                    SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+                    return FALSE;
+                }
+                ret = chacha.VerifyAndDecrypt(m_buf, msg, len, &msg[len]);
+                memcpy(msg, m_buf, len);
+            }
+            break;
+
+        default:
+            SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+            break;
+    }
 
     return ret;
-#else
-    CAesGcm aes;
-
-    aes.SetKeys(m_serverKey, sizeof(m_serverKey));
-    aes.Init(vec, sizeof(vec), msg, sizeof(RecordHeader));
-    msg += sizeof(RecordHeader);
-    len -= sizeof(RecordHeader) + TAG_SIZE;
-    aes.SetTag(&msg[len]);
-    aes.Decrypt(m_buf, msg, len);
-    aes.Finalize();
-    memcpy(msg, m_buf, len);
-
-    return aes.CheckTag();
-#endif
 }
 
 
-VOID CTls13::PrepareEncryption()
+BOOL CTls13::PrepareEncryption()
 {
     switch ( m_keyExchange )
     {
+#if KEY_EXCHANGE_GROUP == 2
+        case Secp384r1:
+            CEcdh<EcCurve::P384>::GetSharedSecret(m_sharedSecret, m_privateKey, m_serverPublicKey);
+            break;
+#else
         case Secp256r1:
             CEcdh<EcCurve::P256>::GetSharedSecret(m_sharedSecret, m_privateKey, m_serverPublicKey);
             break;
         case X25519:
             CX25519::GetSharedSecret(m_sharedSecret, m_privateKey, m_serverPublicKey);
             break;
+#endif
+        default:
+            return FALSE;
     }
 
     UINT8 info[2 + 1 + 20 + 1 + HASH_SIZE];   // length + label_len + label + context_len + context
@@ -1136,19 +1324,19 @@ VOID CTls13::PrepareEncryption()
     UINT8 zero[HASH_SIZE] = { 0 };
     SIZE_T len;
 
-    CSha256 sha = m_transHash;
+    HASH_CLASS sha = m_transHash;
 
     sha.Finish(trans_hash);
     sha.Initialize();
     sha.Finish(zero_hash);
 
-    CHkdf<CSha256> hkdf;
+    CHkdf<HASH_CLASS> hkdf;
 
     hkdf.Initialize(zero, sizeof(zero), zero, sizeof(zero));
     len = MakeLabel(info, sizeof(handshake), "derived", zero_hash, sizeof(zero_hash));
     hkdf.DeriveKey(info, len, handshake, sizeof(handshake));
 
-    hkdf.Initialize(handshake, sizeof(handshake), m_sharedSecret, PV_KEYSIZE);
+    hkdf.Initialize(handshake, sizeof(handshake), m_sharedSecret, m_privateKeySize);
     len = MakeLabel(info, sizeof(chs), "c hs traffic", trans_hash, sizeof(trans_hash));
     hkdf.DeriveKey(info, len, chs, sizeof(chs));
     len = MakeLabel(info, sizeof(shs), "s hs traffic", trans_hash, sizeof(trans_hash));
@@ -1157,16 +1345,16 @@ VOID CTls13::PrepareEncryption()
     hkdf.DeriveKey(info, len, m_derivedSecret, sizeof(m_derivedSecret));
 
     hkdf.SetPrk(chs);
-    len = MakeLabel(info, sizeof(m_clientKey), "key");
-    hkdf.DeriveKey(info, len, m_clientKey, sizeof(m_clientKey));
+    len = MakeLabel(info, m_cipherKeySize, "key");
+    hkdf.DeriveKey(info, len, m_clientKey, m_cipherKeySize);
     len = MakeLabel(info, sizeof(m_clientIV), "iv");
     hkdf.DeriveKey(info, len, m_clientIV, sizeof(m_clientIV));
     len = MakeLabel(info, sizeof(m_clientFinishedKey), "finished");
     hkdf.DeriveKey(info, len, m_clientFinishedKey, sizeof(m_clientFinishedKey));
 
     hkdf.SetPrk(shs);
-    len = MakeLabel(info, sizeof(m_serverKey), "key");
-    hkdf.DeriveKey(info, len, m_serverKey, sizeof(m_serverKey));
+    len = MakeLabel(info, m_cipherKeySize, "key");
+    hkdf.DeriveKey(info, len, m_serverKey, m_cipherKeySize);
     len = MakeLabel(info, sizeof(m_serverIV), "iv");
     hkdf.DeriveKey(info, len, m_serverIV, sizeof(m_serverIV));
     len = MakeLabel(info, sizeof(m_serverFinishedKey), "finished");
@@ -1174,6 +1362,8 @@ VOID CTls13::PrepareEncryption()
 
     m_sendSequence = 0;
     m_receiveSequence = 0;
+
+    return TRUE;
 }
 
 
@@ -1185,7 +1375,7 @@ VOID CTls13::PrepareEncryption2(const UINT8 * trans_hash)
     UINT8 zero[HASH_SIZE] = { 0 };
     SIZE_T len;
 
-    CHkdf<CSha256> hkdf;
+    CHkdf<HASH_CLASS> hkdf;
 
     hkdf.Initialize(m_derivedSecret, sizeof(m_derivedSecret), zero, sizeof(zero));
     len = MakeLabel(info, sizeof(cap), "c ap traffic", trans_hash, HASH_SIZE);
@@ -1194,14 +1384,14 @@ VOID CTls13::PrepareEncryption2(const UINT8 * trans_hash)
     hkdf.DeriveKey(info, len, sap, sizeof(sap));
 
     hkdf.SetPrk(cap);
-    len = MakeLabel(info, sizeof(m_clientKey), "key");
-    hkdf.DeriveKey(info, len, m_clientKey, sizeof(m_clientKey));
+    len = MakeLabel(info, m_cipherKeySize, "key");
+    hkdf.DeriveKey(info, len, m_clientKey, m_cipherKeySize);
     len = MakeLabel(info, sizeof(m_clientIV), "iv");
     hkdf.DeriveKey(info, len, m_clientIV, sizeof(m_clientIV));
 
     hkdf.SetPrk(sap);
-    len = MakeLabel(info, sizeof(m_serverKey), "key");
-    hkdf.DeriveKey(info, len, m_serverKey, sizeof(m_serverKey));
+    len = MakeLabel(info, m_cipherKeySize, "key");
+    hkdf.DeriveKey(info, len, m_serverKey, m_cipherKeySize);
     len = MakeLabel(info, sizeof(m_serverIV), "iv");
     hkdf.DeriveKey(info, len, m_serverIV, sizeof(m_serverIV));
 
@@ -1293,6 +1483,14 @@ BOOL CTls13::ExtractX509PublicKey(const UINT8 * in, SIZE_T inlen)
     {
         0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01
     };
+    static const UINT8 ECDSA256_OID[] =
+    {
+        0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07
+    };
+    static const UINT8 ECDSA384_OID[] =
+    {
+        0x2b, 0x81, 0x04, 0x00, 0x22
+    };
     static const UINT8 ED25519_OID[] =
     {
         0x2b, 0x65, 0x70
@@ -1343,7 +1541,8 @@ BOOL CTls13::ExtractX509PublicKey(const UINT8 * in, SIZE_T inlen)
                                 }
                                 break;
 
-                            case ECDSA:
+                            case ECDSA256:
+                            case ECDSA384:
                                 if ( ExtractEcdsaPublicKey(node[depth].value, node[depth].length) )
                                 {
                                     return TRUE;
@@ -1367,30 +1566,46 @@ BOOL CTls13::ExtractX509PublicKey(const UINT8 * in, SIZE_T inlen)
                 break;
 
             case 0x06:  // OID = signature algorithm
-                if ( depth == 4 && childpos == 1 &&
+                if ( depth == 4 &&
                      (stack[2].position == 6 || stack[2].position == 7) &&
                      stack[1].position == 1 && stack[0].position == 1 )
                 {
-                    foundalgo = TRUE;
-                    if ( memcmp(node[depth].value, RSA_OID, node[depth].length) == 0 )
+                    if ( childpos == 1 )
                     {
-                        m_certAlgorithm = RSA;
+                        if ( memcmp(node[depth].value, RSA_OID, node[depth].length) == 0 )
+                        {
+                            m_certAlgorithm = RSA;
+                            foundalgo = TRUE;
+                        }
+                        else if ( memcmp(node[depth].value, ECDSA_OID, node[depth].length) == 0 )
+                        {
+                            m_certAlgorithm = ECDSA256;
+                        }
+                        else if ( memcmp(node[depth].value, ED25519_OID, node[depth].length) == 0 )
+                        {
+                            m_certAlgorithm = ED25519;
+                            foundalgo = TRUE;
+                        }
+                        if ( foundkey && foundalgo )
+                        {
+                            return TRUE;
+                        }
                     }
-                    else if ( memcmp(node[depth].value, ECDSA_OID, node[depth].length) == 0 )
+                    else if ( childpos == 2 && m_certAlgorithm == ECDSA256 )
                     {
-                        m_certAlgorithm = ECDSA;
-                    }
-                    else if ( memcmp(node[depth].value, ED25519_OID, node[depth].length) == 0 )
-                    {
-                        m_certAlgorithm = ED25519;
-                    }
-                    else
-                    {
-                        foundalgo = FALSE;
-                    }
-                    if ( foundkey && foundalgo )
-                    {
-                        return TRUE;
+                        if ( memcmp(node[depth].value, ECDSA256_OID, node[depth].length) == 0 )
+                        {
+                            foundalgo = TRUE;
+                        }
+                        else if ( memcmp(node[depth].value, ECDSA384_OID, node[depth].length) == 0 )
+                        {
+                            m_certAlgorithm = ECDSA384;
+                            foundalgo = TRUE;
+                        }
+                        if ( foundkey && foundalgo )
+                        {
+                            return TRUE;
+                        }
                     }
                 }
                 start = node[depth].next;
