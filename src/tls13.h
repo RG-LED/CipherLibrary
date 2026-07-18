@@ -75,8 +75,8 @@ private:
     static constexpr SIZE_T SECP256_PB_KEYSIZE = 65;
     static constexpr SIZE_T SECP384_PV_KEYSIZE = 48;
     static constexpr SIZE_T SECP384_PB_KEYSIZE = 97;
-    static constexpr SIZE_T PB_KEYSIZE = MAX(X25519_PB_KEYSIZE, MAX(SECP256_PB_KEYSIZE, SECP384_PB_KEYSIZE));
-    static constexpr SIZE_T PV_KEYSIZE = MAX(X25519_PV_KEYSIZE, MAX(SECP256_PV_KEYSIZE, SECP384_PV_KEYSIZE));
+    static constexpr SIZE_T PB_MAX_KEYSIZE = MAX(X25519_PB_KEYSIZE, MAX(SECP256_PB_KEYSIZE, SECP384_PB_KEYSIZE));
+    static constexpr SIZE_T PV_MAX_KEYSIZE = MAX(X25519_PV_KEYSIZE, MAX(SECP256_PV_KEYSIZE, SECP384_PV_KEYSIZE));
 
     VOID Reset();
     BOOL SendClientHello();
@@ -91,10 +91,10 @@ private:
 
     BOOL ProcessHandshake(const UINT8 * msg, SIZE_T len);
     INT32 ParseServerHello(const UINT8 * msg, SIZE_T len);
-    BOOL ParseEncryptedExtension(const UINT8 * msg, SIZE_T len);
-    BOOL ParseCertificate(const UINT8 * msg, SIZE_T len);
-    BOOL ParseCertificateVerify(const UINT8 * msg, SIZE_T len);
-    BOOL ParseFinished(const UINT8 * msg, SIZE_T len);
+    BOOL ParseEncryptedExtension(const UINT8 * msg, SIZE_T & len);
+    BOOL ParseCertificate(const UINT8 * msg, SIZE_T & len);
+    BOOL ParseCertificateVerify(const UINT8 * msg, SIZE_T & len);
+    BOOL ParseFinished(const UINT8 * msg, SIZE_T & len);
 
     BOOL ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len);
     BOOL PrepareEncryption();
@@ -125,9 +125,9 @@ private:
     TLS_CALLBACK m_senderFunc;
     UINT32 m_callbackID;
 
-    UINT8 m_privateKey[PV_KEYSIZE];
-    UINT8 m_clientPublicKey[PB_KEYSIZE];
-    UINT8 m_serverPublicKey[PB_KEYSIZE];
+    UINT8 m_privateKey[PV_MAX_KEYSIZE];
+    UINT8 m_clientPublicKey[PB_MAX_KEYSIZE];
+    UINT8 m_serverPublicKey[PB_MAX_KEYSIZE];
     UINT8 m_sharedSecret[HASH_SIZE];
     UINT8 m_derivedSecret[HASH_SIZE];
     SIZE_T m_privateKeySize;
@@ -140,6 +140,7 @@ private:
     UINT8 m_serverIV[12];
     SIZE_T m_cipherKeySize;
 
+    SIZE_T m_cookieSize;
     UINT8 m_cookie[256];
     UINT8 m_certPublicKey1[256];
     UINT8 m_certPublicKey2[HASH_SIZE];

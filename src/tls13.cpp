@@ -74,6 +74,7 @@ VOID CTls13::Reset()
 #else
 #error "Key exchange is not properly decided."
 #endif
+    m_cookieSize = 0;
     m_transHash.Initialize();
     m_alertDetail = 0;
 }
@@ -100,17 +101,6 @@ struct HelloHeader
     UINT8 Random[32];
 };
 
-struct PacketHeader
-{
-    RecordHeader    Record;
-    HandshakeHeader Handshake;
-    union
-    {
-        HelloHeader Hello;
-        UINT8       MessageBody[1];
-    };
-};
-
 #pragma pack(pop)
 
 
@@ -128,7 +118,7 @@ BOOL CTls13::StartConnection(TLS_CALLBACK receiver, TLS_CALLBACK sender, UINT32 
 
 BOOL CTls13::SendClientHello()
 {
-    UINT8 msg[384];
+    UINT8 msg[256];
     SIZE_T len = sizeof(msg);
 
     if ( !MakeClientHello(msg, len) )
@@ -141,6 +131,7 @@ BOOL CTls13::SendClientHello()
         (*m_senderFunc)(m_callbackID, msg, len);
     }
 
+    m_cookieSize = 0;
     secure_zero(msg, sizeof(msg));
     return TRUE;
 }
@@ -169,15 +160,15 @@ BOOL CTls13::SendClientFinished()
 BOOL CTls13::SendAlert(INT32 level, INT32 desc)
 {
     UINT8 msg[32];
-    SIZE_T len = sizeof(msg);
+    SIZE_T len = sizeof(RecordHeader) + 2;
 
-    PacketHeader * pk = (PacketHeader *)msg;
+    RecordHeader * pk = (RecordHeader *)msg;
 
-    pk->Record.ContentType = 0x15;              // Alert
-    pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
-    pk->Record.ProtocolVersion[1] = 0x03;
-    pk->Record.RecordLength[0] = 0x00;
-    pk->Record.RecordLength[1] = 0x02;
+    pk->ContentType = 0x15;              // Alert
+    pk->ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
+    pk->ProtocolVersion[1] = 0x03;
+    pk->RecordLength[0] = 0x00;
+    pk->RecordLength[1] = 0x02;
 
     msg[sizeof(RecordHeader)] = (UINT8)level;
     msg[sizeof(RecordHeader) + 1] = (UINT8)desc;
@@ -186,9 +177,10 @@ BOOL CTls13::SendAlert(INT32 level, INT32 desc)
 
     if ( m_phase >= ReceivingServerHello )
     {
-        pk->Record.ContentType = 0x16;              // Handshake
+        pk->ContentType = 0x16;              // Handshake
         msg[sizeof(RecordHeader) + 2] = 0x15;       // Alert
         EncryptPacket(msg, sizeof(RecordHeader) + 3);
+        len += TAG_SIZE + 1;
     }
 
     if ( m_senderFunc != NULL )
@@ -304,32 +296,40 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
                break;
 #endif
         default:
-            return FALSE;
+               return FALSE;
     }
 
+    SIZE_T cookielen = (m_cookieSize > 0) ? m_cookieSize + 4 : 0;
+
     if ( m_phase != SendingClientHello ||
-         len < sizeof(PacketHeader) + sizeof(tmpl1) + sizeof(tmpl2) + 2 /* extension length */ +
-               kexlen + sizeof(tmpl4) )
+         len < sizeof(RecordHeader) + sizeof(HandshakeHeader) +
+               sizeof(tmpl1) + sizeof(tmpl2) + 2 /* extension length */ +
+               kexlen + cookielen + sizeof(tmpl4) )
     {
         SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
         return FALSE;
     }
 
-    PacketHeader * pk = (PacketHeader *)msg;
-    pk->Record.ContentType = 0x16;              // Handshake
-    pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
-    pk->Record.ProtocolVersion[1] = 0x03;
-    pk->Record.RecordLength[0] = 0;             // temporarily
-    pk->Record.RecordLength[1] = 0;
-    pk->Handshake.HandshakeType = 0x01;         // ClientHello
-    pk->Handshake.HandshakeLength[0] = 0;       // temporarily
-    pk->Handshake.HandshakeLength[1] = 0;
-    pk->Handshake.HandshakeLength[2] = 0;
-    pk->Hello.ProtocolVersion[0] = 0x03;        // TLS 1.2
-    pk->Hello.ProtocolVersion[1] = 0x03;
-    secure_random(pk->Hello.Random, sizeof(pk->Hello.Random));
+    RecordHeader * pk1 = (RecordHeader *)msg;
+    HandshakeHeader * pk2 = (HandshakeHeader *)&pk1[1];
+    HelloHeader * pk3 = (HelloHeader *)&pk2[1];
 
-    SIZE_T offset = sizeof(*pk);
+    pk1->ContentType = 0x16;              // Handshake
+    pk1->ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
+    pk1->ProtocolVersion[1] = 0x03;
+    pk1->RecordLength[0] = 0;             // temporarily
+    pk1->RecordLength[1] = 0;
+
+    pk2->HandshakeType = 0x01;         // ClientHello
+    pk2->HandshakeLength[0] = 0;       // temporarily
+    pk2->HandshakeLength[1] = 0;
+    pk2->HandshakeLength[2] = 0;
+
+    pk3->ProtocolVersion[0] = 0x03;        // TLS 1.2
+    pk3->ProtocolVersion[1] = 0x03;
+    secure_random(pk3->Random, sizeof(pk3->Random));
+
+    SIZE_T offset = sizeof(RecordHeader) + sizeof(HandshakeHeader) + sizeof(HelloHeader);
 
     memcpy(&msg[offset], tmpl1, sizeof(tmpl1));
     offset += sizeof(tmpl1);
@@ -382,6 +382,16 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
             return FALSE;
     }
 
+    if ( m_cookieSize > 0 )
+    {
+        msg[offset++] = 0x00;
+        msg[offset++] = 0x2c;
+        msg[offset++] = (UINT8)(m_cookieSize >> 8);
+        msg[offset++] = (UINT8)m_cookieSize;
+        memcpy(&msg[offset], m_cookie, m_cookieSize);
+        offset += m_cookieSize;
+    }
+
     memcpy(&msg[offset], tmpl4, sizeof(tmpl4));
     offset += sizeof(tmpl4);
 
@@ -390,11 +400,11 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
     WRITE16(extlen, n);
     extlen[1] = (UINT8)n;
 
-    n = &msg[offset] - (UINT8 *)&pk->Hello;
-    WRITE24(pk->Handshake.HandshakeLength, n);
+    n = &msg[offset] - (UINT8 *)pk3;
+    WRITE24(pk2->HandshakeLength, n);
 
-    n = &msg[offset] - (UINT8 *)&pk->Handshake;
-    WRITE16(pk->Record.RecordLength, n);
+    n = &msg[offset] - (UINT8 *)pk2;
+    WRITE16(pk1->RecordLength, n);
 
     len = offset;
     m_phase = ReceivingServerHello;
@@ -406,9 +416,8 @@ BOOL CTls13::MakeClientHello(UINT8 * msg, SIZE_T & len)
 
 BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
 {
-    PacketHeader * pk = (PacketHeader *)msg;
     if ( m_phase != SendingFinished ||
-         &msg[len] < &pk->MessageBody[HASH_SIZE + 1] + TAG_SIZE )
+         len < sizeof(RecordHeader) + sizeof(HandshakeHeader) + HASH_SIZE + 1 + TAG_SIZE )
     {
         SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
         return FALSE;
@@ -423,24 +432,30 @@ BOOL CTls13::MakeClientFinished(UINT8 * msg, SIZE_T & len)
     hmac.Update(hash, sizeof(hash));
     hmac.Finish(hash);
 
-    pk->Record.ContentType = 0x17;              // ApplicationData
-    pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
-    pk->Record.ProtocolVersion[1] = 0x03;
-    pk->Record.RecordLength[0] = 0x00;          // size
-    pk->Record.RecordLength[1] = sizeof(HandshakeHeader) + HASH_SIZE + 1 + TAG_SIZE; // 4 + 32 + 1 + 16
-    pk->Handshake.HandshakeType = 0x14;         // Finished(client)
-    pk->Handshake.HandshakeLength[0] = 0x00;    // size
-    pk->Handshake.HandshakeLength[1] = 0x00;
-    pk->Handshake.HandshakeLength[2] = HASH_SIZE;
-    memcpy(pk->MessageBody, hash, sizeof(hash));
-    pk->MessageBody[sizeof(hash)] = 0x16;       // Handshake
+    RecordHeader * pk1 = (RecordHeader *)msg;
+    HandshakeHeader * pk2 = (HandshakeHeader *)&pk1[1];
+    UINT8 * pk3 = (UINT8 *)&pk2[1];
+
+    pk1->ContentType = 0x17;              // ApplicationData
+    pk1->ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
+    pk1->ProtocolVersion[1] = 0x03;
+    pk1->RecordLength[0] = 0x00;          // size
+    pk1->RecordLength[1] = sizeof(HandshakeHeader) + HASH_SIZE + 1 + TAG_SIZE; // 4 + 32 + 1 + 16
+
+    pk2->HandshakeType = 0x14;         // Finished(client)
+    pk2->HandshakeLength[0] = 0x00;    // size
+    pk2->HandshakeLength[1] = 0x00;
+    pk2->HandshakeLength[2] = HASH_SIZE;
+
+    memcpy(pk3, hash, sizeof(hash));
+    pk3[sizeof(hash)] = 0x16;       // Handshake
 
     len = sizeof(RecordHeader) + sizeof(HandshakeHeader) + HASH_SIZE + 1;
 
     sha = m_transHash;
     sha.Finish(hash);
 
-    m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader) - 1);
+    m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader) - 1); // exclude inner content type
 
     EncryptPacket(msg, len);
 
@@ -462,28 +477,29 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
 
     while ( len > sizeof(RecordHeader) )
     {
-        PacketHeader * pk = (PacketHeader *)p;
-        if ( pk->Record.ProtocolVersion[0] != 0x03 ||   // LegacyRecordVersion
-             pk->Record.ProtocolVersion[1] != 0x03 )
+        RecordHeader * pk = (RecordHeader *)p;
+        if ( pk->ProtocolVersion[0] != 0x03 ||   // LegacyRecordVersion
+             pk->ProtocolVersion[1] != 0x03 )
         {
             SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
             return FALSE;
         }
 
-        SIZE_T size = READ16(pk->Record.RecordLength) + sizeof(RecordHeader);
+        SIZE_T size = READ16(pk->RecordLength);
 
-        if ( size > len )
+        if ( len < size + sizeof(RecordHeader) )
         {
             break;
         }
 
         SIZE_T contents = size;
+        UINT8 * ptr = (UINT8 *)&pk[1];
 
     Retry:
-        switch ( pk->Record.ContentType )
+        switch ( pk->ContentType )
         {
             case 0x14:  // ChangeCipherSpec (TLS 1.2)
-                if ( p[sizeof(RecordHeader)] != 0x01 )
+                if ( ptr[0] != 0x01 )
                 {
                     SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
                     return FALSE;
@@ -491,49 +507,49 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
                 break;
 
             case 0x15:  // Alert
-                if ( p[sizeof(RecordHeader)] == 0x01 &&     // warning
-                     p[sizeof(RecordHeader) + 1] == 0x00 )  // close_notify
+                if ( ptr[0] == 0x01 &&  // warning
+                     ptr[1] == 0x00 )   // close_notify
                 {
                     m_phase = Closed;
                 }
                 else
                 {
                     m_phase = Error;
-                    m_alertDetail = READ16(&p[sizeof(RecordHeader)]);
+                    m_alertDetail = READ16(ptr);
                 }
                 return FALSE;
 
             case 0x16:  // Handshake
-                if ( !ProcessHandshake(p, contents) )
+                if ( !ProcessHandshake(ptr, contents) )
                 {
                     return FALSE;
                 }
                 break;
 
             case 0x17:  // ApplicationData
-                if ( size <= sizeof(RecordHeader) + TAG_SIZE )
+                if ( contents <= TAG_SIZE + 1 )
                 {
                     SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
                     return FALSE;
                 }
-                if ( !DecryptPacket(p, size) )
+                if ( !DecryptPacket(p, contents + sizeof(RecordHeader)) )
                 {
                     SendAlert(ALERT_FATAL, ALERT_BAD_RECORD_MAC);
                     return FALSE;
                 }
                 contents -= TAG_SIZE + 1;
-                while ( contents >= sizeof(RecordHeader) && p[contents] == 0x00 )
+                while ( contents > 0 && ptr[contents] == 0x00 )
                 {
                     contents--;
                 }
-                if ( p[contents] != 0x17 )  // ApplicationData
+                if ( ptr[contents] != 0x17 )  // ApplicationData
                 {
-                    pk->Record.ContentType = p[contents];
+                    pk->ContentType = ptr[contents];
                     goto Retry;
                 }
                 if ( m_receiverFunc != NULL )
                 {
-                    (*m_receiverFunc)(m_callbackID, p + sizeof(RecordHeader), contents - sizeof(RecordHeader));
+                    (*m_receiverFunc)(m_callbackID, ptr, contents);
                 }
                 break;
 
@@ -542,12 +558,15 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
                 return FALSE;
         }
 
-        p += size;
-        len -= size;
+        p += size + sizeof(RecordHeader);
+        len -= size + sizeof(RecordHeader);
     }
     if ( len > 0 )
     {
-        memcpy(msg, p, len);
+        for ( SIZE_T i = 0; i < len; i++ )
+        {
+            msg[i] = p[i];
+        }
     }
     if ( m_phase == SendingFinished )
     {
@@ -563,74 +582,85 @@ BOOL CTls13::ProcessReceivedMessage(UINT8 * msg, SIZE_T & len)
 
 BOOL CTls13::ProcessHandshake(const UINT8 * msg, SIZE_T len)
 {
-    const PacketHeader * pk = (PacketHeader *)msg;
-    switch ( pk->Handshake.HandshakeType )
+    while ( len > sizeof(HandshakeHeader) )
     {
-        case 0x02:  // ServerHello
-            {
-                INT32 ret = ParseServerHello(msg, len);
-                if ( ret < 0 )
+        const HandshakeHeader * pk = (HandshakeHeader *)msg;
+        SIZE_T size = READ24(pk->HandshakeLength);
+        if ( len < size + sizeof(HandshakeHeader) )
+        {
+            break;
+        }
+        const UINT8 * ptr = (UINT8 *)&pk[1];
+        switch ( pk->HandshakeType )
+        {
+            case 0x02:  // ServerHello
+                {
+                    INT32 ret = ParseServerHello(ptr, size);
+                    if ( ret < 0 )
+                    {
+                        return FALSE;
+                    }
+                    m_transHash.Update(msg, len);
+                    if ( ret > 0 && !PrepareEncryption() )
+                    {
+                        SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+                        return FALSE;
+                    }
+                }
+                return TRUE;    // no other handshake will follow
+
+            case 0x08:  // EncryptedExtensions
+                if ( !ParseEncryptedExtension(ptr, size) )
                 {
                     return FALSE;
                 }
-                m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-                if ( ret > 0 && !PrepareEncryption() )
+                m_transHash.Update(msg, size + sizeof(HandshakeHeader));
+                break;
+
+            case 0x0b:  // Certificate
+                if ( !ParseCertificate(ptr, size) )
                 {
-                    SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
                     return FALSE;
                 }
-            }
-            break;
+                m_transHash.Update(msg, size + sizeof(HandshakeHeader));
+                break;
 
-        case 0x08:  // EncryptedExtensions
-            if ( !ParseEncryptedExtension(msg, len) )
-            {
+            case 0x0d:  // CertificateRequest
+                SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
+                return FALSE;   // This implementation does not support client certification
+
+            case 0x0f:  // CertificateVerify
+                if ( !ParseCertificateVerify(ptr, size) )
+                {
+                    return FALSE;
+                }
+                m_transHash.Update(msg, size + sizeof(HandshakeHeader));
+                break;
+
+            case 0x14:  // Finished
+                if ( !ParseFinished(ptr, size) )
+                {
+                    return FALSE;
+                }
+                m_transHash.Update(msg, size + sizeof(HandshakeHeader));
+                break;
+
+            case 0x04:  // NewSessionTicket
+                break;
+
+            default:
+                SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
                 return FALSE;
-            }
-            m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-            break;
-
-        case 0x0b:  // Certificate
-            if ( !ParseCertificate(msg, len) )
-            {
-                return FALSE;
-            }
-            m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-            break;
-
-        case 0x0d:  // CertificateRequest
-            SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
-            return FALSE;   // This implementation does not support client certification
-
-        case 0x0f:  // CertificateVerify
-            if ( !ParseCertificateVerify(msg, len) )
-            {
-                return FALSE;
-            }
-            m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-            break;
-
-        case 0x14:  // Finished
-            if ( !ParseFinished(msg, len) )
-            {
-                return FALSE;
-            }
-            m_transHash.Update(msg + sizeof(RecordHeader), len - sizeof(RecordHeader));
-            break;
-
-        case 0x04:  // NewSessionTicket
-            break;
-
-        default:
-            SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
-            return FALSE;
+        }
+        msg += size + sizeof(HandshakeHeader);
+        len -= size + sizeof(HandshakeHeader);
     }
     return TRUE;
 }
 
 BOOL CTls13::BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msglen)
 {
-    PacketHeader * pk = (PacketHeader *)out;
+    RecordHeader * pk = (RecordHeader *)out;
 
     SIZE_T n = sizeof(RecordHeader) + msglen + 1 + TAG_SIZE;
     if ( len < n )
@@ -639,21 +669,18 @@ BOOL CTls13::BuildPacket(UINT8 * out, SIZE_T & len, const VOID * msg, SIZE_T msg
         return FALSE;
     }
 
-    pk->Record.ContentType = 0x17;              // ApplicationData
-    pk->Record.ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
-    pk->Record.ProtocolVersion[1] = 0x03;
+    len = n;
+
+    pk->ContentType = 0x17;              // ApplicationData
+    pk->ProtocolVersion[0] = 0x03;       // LegacyRecordVersion
+    pk->ProtocolVersion[1] = 0x03;
 
     memcpy(&out[sizeof(RecordHeader)], msg, msglen);
     out[sizeof(RecordHeader) + msglen] = 0x17;           // ApplicationData
 
-    n = msglen + 1 + TAG_SIZE;
-    pk->Record.RecordLength[0] = (UINT8)(n >> 8);
-    pk->Record.RecordLength[1] = (UINT8)n;
+    WRITE16(pk->RecordLength, msglen + 1 + TAG_SIZE);
 
-    len = sizeof(RecordHeader) + msglen + 1;
-    EncryptPacket(out, len);
-
-    len += TAG_SIZE;
+    EncryptPacket(out, sizeof(RecordHeader) + msglen + 1);
 
     return TRUE;
 }
@@ -672,33 +699,39 @@ INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
         return -1;
     }
 
-    if ( len < sizeof(PacketHeader) + 1 )
+    if ( len < sizeof(HelloHeader) )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
         return -1;
     }
 
-    const PacketHeader * pk = (const PacketHeader *)msg;
+    const HelloHeader * pk = (const HelloHeader *)msg;
 
-    if ( pk->Hello.ProtocolVersion[0] != 0x03 ||        // TLS 1.2
-         pk->Hello.ProtocolVersion[1] != 0x03 )
+    if ( pk->ProtocolVersion[0] != 0x03 ||        // TLS 1.2
+         pk->ProtocolVersion[1] != 0x03 )
     {
         SendAlert(ALERT_FATAL, ALERT_PROTOCOL_VERSION);
         return -1;
     }
 
-    BOOL retry = (memcmp(pk->Hello.Random, HelloRetryRequest, sizeof(pk->Hello.Random)) == 0);
+    BOOL retry = (memcmp(pk->Random, HelloRetryRequest, sizeof(pk->Random)) == 0);
 
-    SIZE_T offset = sizeof(*pk);
-
-    if ( len < sizeof(PacketHeader) )
+    if ( len < sizeof(HelloHeader) + 1 )
     {
         SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
         return -1;
     }
 
+    SIZE_T offset = sizeof(HelloHeader);
     SIZE_T n = msg[offset++];   // legacy session ID length
     offset += n;    // skip legacy session ID
+
+    if ( len < offset + 3 )
+    {
+        SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
+        return -1;
+    }
+
     switch ( READ16(&msg[offset]) )
     {
         case 0x1301:    // TLS_AES_128_GCM_SHA256
@@ -749,6 +782,12 @@ INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
         extension += 2;
         extlen -= 2;
 
+        if ( extlen < size )
+        {
+            SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
+            return -1;
+        }
+
         switch ( exttype )
         {
             case 0x002b:    // supported version
@@ -760,6 +799,18 @@ INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
                 extension += 2;
                 extlen -= 2;
                 gotSupportedVersion = TRUE;
+                break;
+
+            case 0x002c:    // cookie
+                if ( size > sizeof(m_cookie) )
+                {
+                    SendAlert(ALERT_FATAL, ALERT_INTERNAL_ERROR);
+                    return -1;
+                }
+                memcpy(m_cookie, extension, size);
+                m_cookieSize = size;
+                extension += size;
+                extlen -= size;
                 break;
 
             case 0x0033:    // key share
@@ -872,8 +923,7 @@ INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
         UINT8 header[4];
         header[0] = 0xfe;
         header[1] = 0x00;
-        header[2] = (UINT8)(HASH_SIZE >> 8);
-        header[3] = (UINT8)HASH_SIZE;
+        WRITE16(&header[2], HASH_SIZE);
         m_transHash.Update(header, sizeof(header));
         m_transHash.Update(hash, sizeof(hash));
 
@@ -895,7 +945,7 @@ INT32 CTls13::ParseServerHello(const UINT8 * msg, SIZE_T len)
 }
 
 
-BOOL CTls13::ParseEncryptedExtension(const UINT8 * msg, SIZE_T len)
+BOOL CTls13::ParseEncryptedExtension(const UINT8 * msg, SIZE_T & len)
 {
     if ( m_phase != ReceivingEncryptedExtensions )
     {
@@ -903,45 +953,49 @@ BOOL CTls13::ParseEncryptedExtension(const UINT8 * msg, SIZE_T len)
         return FALSE;
     }
 
-    const PacketHeader * pk = (const PacketHeader *)msg;
+    if ( len < 2 )
+    {
+        SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
+        return FALSE;
+    }
 
-    if ( msg + len < &pk->MessageBody[2] )
+    SIZE_T extlen = READ16(msg); // extensions length
+
+    const UINT8 * extension = &msg[2];
+
+    if ( len < extlen + 2 )
     {
         SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
         return FALSE;
     }
 
-    INT32 extlen = READ16(pk->MessageBody);    // extensions length
-
-    const UINT8 * extension = &pk->MessageBody[2];
-
-    if ( msg + len < extension + extlen )
-    {
-        SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-        return FALSE;
-    }
+    len = extension - msg + extlen;
 
     while ( extlen > 4 )    // type (2 bytes) and length (2 bytes) at least
     {
         UINT32 exttype = READ16(extension);
         extension += 2;
         extlen -= 2;
-        INT32 size = READ16(extension);
+        SIZE_T size = READ16(extension);
         extension += 2;
         extlen -= 2;
+
+        if ( extlen < size )
+        {
+            SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
+            return FALSE;
+        }
 
         switch ( exttype )
         {
             case 0x000a:    // supported groups
-                extension += size;
-                extlen -= size;
                 break;
 
             default:
-                extension += size;
-                extlen -= size;
                 break;
         }
+        extension += size;
+        extlen -= size;
     }
 
     m_phase = ReceivingCertificate;
@@ -950,7 +1004,7 @@ BOOL CTls13::ParseEncryptedExtension(const UINT8 * msg, SIZE_T len)
 }
 
 
-BOOL CTls13::ParseCertificate(const UINT8 * msg, SIZE_T len)
+BOOL CTls13::ParseCertificate(const UINT8 * msg, SIZE_T & len)
 {
     if ( m_phase != ReceivingCertificate )
     {
@@ -958,19 +1012,35 @@ BOOL CTls13::ParseCertificate(const UINT8 * msg, SIZE_T len)
         return FALSE;
     }
 
-    const PacketHeader * pk = (const PacketHeader *)msg;
-
-    SIZE_T size = pk->MessageBody[0];
-    const UINT8 * p = &pk->MessageBody[size + 1];
-    p += 3;
-    size = READ24(p);
-    p += 3;
-    if ( p + size > msg + len )
+    if ( len < 1 )
     {
-        SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
+        SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
         return FALSE;
     }
-    if ( !ExtractX509PublicKey(p, size) )
+
+    SIZE_T offset = 0;
+    offset += msg[offset] + 1;
+
+    if ( len < offset + 6 )
+    {
+        SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
+        return FALSE;
+    }
+
+    SIZE_T total = READ24(&msg[offset]);
+    offset += 3;
+    SIZE_T size = READ24(&msg[offset]);
+    offset += 3;
+
+    if ( total < size + 3 || len < total + 3 )
+    {
+        SendAlert(ALERT_FATAL, ALERT_DECODE_ERROR);
+        return FALSE;
+    }
+
+    len = total + 4;
+
+    if ( !ExtractX509PublicKey(&msg[offset], size) )
     {
         SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
         return FALSE;
@@ -982,7 +1052,7 @@ BOOL CTls13::ParseCertificate(const UINT8 * msg, SIZE_T len)
 }
 
 
-BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
+BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T & len)
 {
     if ( m_phase != ReceivingCertificateVerify )
     {
@@ -990,25 +1060,23 @@ BOOL CTls13::ParseCertificateVerify(const UINT8 * msg, SIZE_T len)
         return FALSE;
     }
 
-    if ( len < sizeof(PacketHeader) + 4 )
+    if ( len < 4 )
     {
         SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
         return FALSE;
     }
 
-    const UINT8 * p = ((const PacketHeader *)msg)->MessageBody;
+    INT32 algo = READ16(&msg[0]);
+    SIZE_T siglen = READ16(&msg[2]);
+    const UINT8 * sig = &msg[4];
 
-    INT32 algo = READ16(p);
-    p += 2;
-    SIZE_T siglen = READ16(p);
-    p += 2;
-    const UINT8 * sig = p;
-
-    if ( &sig[siglen] < &msg[len] )
+    if ( len < siglen + 4 )
     {
         SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
         return FALSE;
     }
+
+    len = sig - msg + siglen;
 
     UINT8 hash[64 + 33 + 1 + HASH_SIZE];
     for ( INT32 i = 0; i < 64; i++ )
@@ -1144,13 +1212,21 @@ BOOL CTls13::ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len)
 }
 
 
-BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T len)
+BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T & len)
 {
     if ( m_phase != ReceivingFinished )
     {
         SendAlert(ALERT_FATAL, ALERT_UNEXPECTED_MESSAGE);
         return FALSE;
     }
+
+    if ( len < HASH_SIZE )
+    {
+        SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
+        return FALSE;
+    }
+
+    len = HASH_SIZE;
 
     CHmac<HASH_CLASS> hmac;
     UINT8 hash[HASH_SIZE];
@@ -1161,13 +1237,7 @@ BOOL CTls13::ParseFinished(const UINT8 * msg, SIZE_T len)
     hmac.Update(hash, sizeof(hash));
     hmac.Finish(hash);
 
-    const UINT8 * p = ((const PacketHeader *)msg)->MessageBody;
-    if ( &msg[len] < p + sizeof(hash) )
-    {
-        SendAlert(ALERT_FATAL, ALERT_ILLEGAL_PARAMETER);
-        return FALSE;
-    }
-    if ( memcmp(p, hash, sizeof(hash)) != 0 )
+    if ( memcmp(msg, hash, sizeof(hash)) != 0 )
     {
         SendAlert(ALERT_FATAL, ALERT_DECRYPT_ERROR);
         return FALSE;
