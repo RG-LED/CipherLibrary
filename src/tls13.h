@@ -81,6 +81,7 @@ private:
     VOID Reset();
     BOOL SendClientHello();
     BOOL SendClientFinished();
+    BOOL SendKeyUpdate();
     BOOL SendAlert(INT32 level, INT32 desc);
 
     BOOL MakeClientHello(UINT8 * msg, SIZE_T & len);
@@ -95,10 +96,13 @@ private:
     BOOL ParseCertificate(const UINT8 * msg, SIZE_T & len);
     BOOL ParseCertificateVerify(const UINT8 * msg, SIZE_T & len);
     BOOL ParseFinished(const UINT8 * msg, SIZE_T & len);
+    BOOL ParseKeyUpdate(const UINT8 * msg, SIZE_T & len);
 
     BOOL ParsePublicKeyEcdsa(UINT8 * out, const UINT8 * p, SIZE_T len);
     BOOL PrepareEncryption();
     VOID PrepareEncryption2(const UINT8 * trans_hash);
+    VOID UpdateEncryptionToReceive();
+    VOID UpdateEncryptionToSend();
     SIZE_T MakeLabel(UINT8 * out, SIZE_T outlen, const CHAR8 * label, const UINT8 * context = NULL, SIZE_T ctxlen = 0);
 
     struct Asn1Node
@@ -130,6 +134,8 @@ private:
     UINT8 m_serverPublicKey[PB_MAX_KEYSIZE];
     UINT8 m_sharedSecret[HASH_SIZE];
     UINT8 m_derivedSecret[HASH_SIZE];
+    UINT8 m_clientAppSecret[HASH_SIZE];
+    UINT8 m_serverAppSecret[HASH_SIZE];
     SIZE_T m_privateKeySize;
 
     UINT64 m_sendSequence;
