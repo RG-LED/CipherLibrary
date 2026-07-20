@@ -13,7 +13,7 @@
 #include "aesbase.h"
 #include "secure.h"
 
-enum class AesCtrSpec {
+enum AesCtrSpec {
     BIG32,
     LITTLE32,
     BIG128,

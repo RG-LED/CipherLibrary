@@ -1552,14 +1552,7 @@ VOID CTls13::PrepareEncryption2(const UINT8 * trans_hash)
 VOID CTls13::UpdateEncryptionToReceive()
 {
     UINT8 info[2 + 1 + 20 + 1 + HASH_SIZE];   // length + label_len + label + context_len + context
-    UINT8 zero[HASH_SIZE] = { 0 };
-    UINT8 zero_hash[HASH_SIZE];
     SIZE_T len;
-
-    HASH_CLASS sha;
-
-    sha.Initialize();
-    sha.Finish(zero_hash);
 
     CHkdf<HASH_CLASS> hkdf;
 
@@ -1580,14 +1573,7 @@ VOID CTls13::UpdateEncryptionToReceive()
 VOID CTls13::UpdateEncryptionToSend()
 {
     UINT8 info[2 + 1 + 20 + 1 + HASH_SIZE];   // length + label_len + label + context_len + context
-    UINT8 zero[HASH_SIZE] = { 0 };
-    UINT8 zero_hash[HASH_SIZE];
     SIZE_T len;
-
-    HASH_CLASS sha;
-
-    sha.Initialize();
-    sha.Finish(zero_hash);
 
     CHkdf<HASH_CLASS> hkdf;
 

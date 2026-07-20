@@ -36,7 +36,7 @@ private:
 
 /************************************************************/
 
-enum class Hctr2Spec {
+enum Hctr2Spec {
     POLYVAL,
     AESCMAC
 };
