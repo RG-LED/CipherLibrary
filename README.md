@@ -29,6 +29,8 @@ If you found any bug or have any comment or request, please let me know.
 - Ascon-HASH256
 - Ascon-XOF128
 - Ascon-CXOF128
+- ASN.1 encoder/decoder
+- BASE64 encoder/decoder
 - Blake2s
 - Blake2b
 - Blake3
