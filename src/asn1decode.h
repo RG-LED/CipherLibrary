@@ -25,6 +25,7 @@ public:
     INT32 GetDepth() const { return m_depth; }
     INT32 GetPosition() const { return m_position[m_depth]; }
     VOID GetPosition(CHAR8 pos[MAX_DEPTH + 1]) const;
+    const UINT8 * GetCurrentPointer() { return m_top; }
 
 private:
     BOOL FetchElement();
