@@ -36,6 +36,12 @@ struct EcdsaTraits<EcCurve::P384> {
     using CHmacHash = CHmac<CSha384>;
 };
 
+// ---- SECP256K1 ----
+template<>
+struct EcdsaTraits<EcCurve::SECP256K1> {
+    using CHmacHash = CHmac<CSha256>;
+};
+
 /* ========================================================================== */
 /**
  * ECDSA signature class
@@ -53,7 +59,6 @@ public:
     using CEcBase<C>::CScalar;
     using CEcBase<C>::CPrivateKey;
     using CEcBase<C>::CPublicKey;
-    using CEcBase<C>::CPoint;
 
     typedef UINT8 Signature[SCALAR_SIZE * 2];
     typedef UINT8 Digest[SCALAR_SIZE];
@@ -74,11 +79,11 @@ public:
         }
 
         // 4. Q = d * G
-        CPoint G;
+        CEcPoint<C> G;
         G.SetGenerator();
 
-        CPoint Q;
-        CPoint::ScalarMul(Q, G, priv.d);
+        CEcPoint<C> Q;
+        CEcPoint<C>::ScalarMul(Q, G, priv.d);
 
         // 5. convert to affine
         Q.ToAffine(pub.x, pub.y);
@@ -99,9 +104,9 @@ public:
         }
         if ( kb != NULL ) k.fromBytesBE(kb);
 
-        CPoint G, R;
+        CEcPoint<C> G, R;
         G.SetGenerator();
-        CPoint::ScalarMul(R, G, k);
+        CEcPoint<C>::ScalarMul(R, G, k);
 
         CField x, y;
         R.ToAffine(x, y);
@@ -167,14 +172,14 @@ public:
         CScalar::Mul(u2, r, w);
 
         // calculate point
-        CPoint G, Q;
+        CEcPoint<C> G, Q;
         G.SetGenerator();
         Q.FromAffine(pub.x, pub.y);
 
-        CPoint P1, P2, X;
-        CPoint::ScalarMul(P1, G, u1);
-        CPoint::ScalarMul(P2, Q, u2);
-        CPoint::Add(X, P1, P2);
+        CEcPoint<C> P1, P2, X;
+        CEcPoint<C>::ScalarMul(P1, G, u1);
+        CEcPoint<C>::ScalarMul(P2, Q, u2);
+        CEcPoint<C>::Add(X, P1, P2);
 
         if ( X.IsInfinity() )
         {

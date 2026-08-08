@@ -27,7 +27,6 @@ public:
     using CEcBase<C>::CScalar;
     using CEcBase<C>::CPrivateKey;
     using CEcBase<C>::CPublicKey;
-    using CEcBase<C>::CPoint;
 
     // generate public key
     static BOOL PrivateKeyToPublicKey(UINT8 pub[SCALAR_SIZE * 2 + 1], const UINT8 priv[SCALAR_SIZE])
@@ -40,11 +39,11 @@ public:
             return FALSE;
         }
 
-        CPoint G;
+        CEcPoint<C> G;
         G.SetGenerator();
 
-        CPoint Q;
-        CPoint::ScalarMul(Q, G, d);
+        CEcPoint<C> Q;
+        CEcPoint<C>::ScalarMul(Q, G, d);
 
         if ( Q.IsInfinity() )
         {
@@ -81,23 +80,23 @@ public:
         CField x, y;
         x.fromBytesBE(&pub[1]);
         y.fromBytesBE(&pub[SCALAR_SIZE + 1]);
-        if ( !CPoint::IsOnCurve(x, y) )
+        if ( !CEcPoint<C>::IsOnCurve(x, y) )
         {
             return FALSE;
         }
 
-        CPoint P;
+        CEcPoint<C> P;
         P.FromAffine(x, y);
 
-        CPoint check;
-        CPoint::ScalarMul(check, P, CScalar::N);
+        CEcPoint<C> check;
+        CEcPoint<C>::ScalarMul(check, P, CScalar::N);
         if ( !check.IsInfinity() )
         {
             return FALSE;
         }
 
-        CPoint R;
-        CPoint::ScalarMul(R, P, d);
+        CEcPoint<C> R;
+        CEcPoint<C>::ScalarMul(R, P, d);
 
         if ( R.IsInfinity() )
         {

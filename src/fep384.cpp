@@ -248,7 +248,8 @@ VOID CFeP384::FoldP(FOLD_BUF & buf)
         }
         for ( INT32 i = BI384_FOLD_SIZE - BI384_LIMBS + 4; i < BI384_FOLD_SIZE; i++ )
         {
-            acc[i] += (BASE_TYPE)c;
+            c += (CALC_TYPE)acc[i];
+            acc[i] = (BASE_TYPE)c;
             BI384_SHIFT_RIGHT_LIMB(c);
         }
 
@@ -262,7 +263,8 @@ VOID CFeP384::FoldP(FOLD_BUF & buf)
         }
         for ( INT32 i = BI384_FOLD_SIZE - BI384_LIMBS + 3; i < BI384_FOLD_SIZE; i++ )
         {
-            acc[i] += (BASE_TYPE)c;
+            c += (CALC_TYPE)acc[i];
+            acc[i] = (BASE_TYPE)c;
             BI384_SHIFT_RIGHT_LIMB(c);
         }
 
@@ -277,6 +279,7 @@ VOID CFeP384::FoldP(FOLD_BUF & buf)
         for ( INT32 i = BI384_FOLD_SIZE - BI384_LIMBS + 1; i < BI384_FOLD_SIZE; i++ )
         {
             c = (CALC_TYPE)acc[i] - c;
+            acc[i] = (BASE_TYPE)c;
             BI384_SHIFT_RIGHT_CARRY(c);
         }
 
