@@ -513,3 +513,279 @@ BOOL RsaVerifyPSS_SHA256(const CRsaKey2048Pub & pub, const UINT8 * msg, SIZE_T m
     return ok;
 }
 
+// RSAES-OAEP-ENCODE
+static BOOL rsa_oaep_encode_sha256(UINT8 * EM, SIZE_T emLen, 
+                                   const UINT8 * plain, SIZE_T plainLen,
+                                   const UINT8 * label, SIZE_T labelLen)
+{
+    const INT32 hLen = 32; // size of SHA-256
+
+    // 1) check data size (256 - 2*32 - 2 = 190 bytes for 2048 bits)
+    if ( plainLen > emLen - 2 * hLen - 2 )
+    {
+        return FALSE;
+    }
+
+    // 2) lHash = Hash(L)
+    UINT8 lHash[32];
+    CSha256 sha;
+    sha.Initialize();
+    if ( label != NULL && labelLen > 0 )
+    {
+        sha.Update(label, (INT32)labelLen);
+    }
+    sha.Finish(lHash);
+
+    // 3) Build DB = lHash || PS || 0x01 || M
+    // EM consists of 0x00 || maskedSeed(32) || maskedDB(emLen - 33)
+    INT32 dbLen = (INT32)(emLen - hLen - 1);
+    UINT8 * DB = EM + hLen + 1; // use tail of EM for DB buffer
+
+    // clear DB part (including lHash and PS) once
+    secure_zero(DB, dbLen);
+
+    // copy lHash
+    memcpy(DB, lHash, hLen);
+    secure_zero(lHash, sizeof(lHash));
+
+    // place separator 0x01 and plain text M
+    INT32 psLen = (INT32)(dbLen - hLen - 1 - plainLen);
+    DB[hLen + psLen] = 0x01;
+    memcpy(DB + hLen + psLen + 1, plain, plainLen);
+
+    // 4) generate seed and mask
+    UINT8 seed[32];
+    secure_random(seed, hLen);
+
+    // dbMask = MGF1(seed, dbLen)
+    UINT8 dbMask[256 - 32 - 1]; // prepare maximum size
+    mgf1_sha256(dbMask, dbLen, seed, hLen);
+
+    // maskedDB = DB ^ dbMask
+    for ( INT32 i = 0; i < dbLen; ++i )
+    {
+        DB[i] ^= dbMask[i];
+    }
+    secure_zero(dbMask, sizeof(dbMask));
+
+    // seedMask = MGF1(maskedDB, hLen)
+    UINT8 seedMask[32];
+    mgf1_sha256(seedMask, hLen, DB, dbLen);
+
+    // maskedSeed = seed ^ seedMask
+    UINT8 * maskedSeed = EM + 1;
+    for ( INT32 i = 0; i < hLen; ++i )
+    {
+        maskedSeed[i] = seed[i] ^ seedMask[i];
+    }
+    secure_zero(seed, sizeof(seed));
+    secure_zero(seedMask, sizeof(seedMask));
+
+    // 5) place 0x00 at head and complete EM = 0x00 || maskedSeed || maskedDB
+    EM[0] = 0x00;
+
+    return TRUE;
+}
+
+// RSAES-OAEP-DECODE
+static BOOL rsa_oaep_decode_sha256(const UINT8 * EM, SIZE_T emLen,
+                                   UINT8 * outPlain, SIZE_T * outPlainLen,
+                                   const UINT8 * label, SIZE_T labelLen)
+{
+    const INT32 hLen = 32;
+    INT32 dbLen = (INT32)(emLen - hLen - 1);
+
+    // 1) check format
+    if ( emLen < 2 * hLen + 2 )
+    {
+        return FALSE;
+    }
+
+    // countermeasure for Manger attack; preserve error instead of returning immediately
+    BOOL ng = FALSE;
+    if ( EM[0] != 0x00 )
+    {
+        ng = TRUE;
+    }
+
+    // lHash = Hash(L)
+    UINT8 lHash[32];
+    CSha256 sha;
+    sha.Initialize();
+    if ( label != NULL && labelLen > 0 )
+    {
+        sha.Update(label, (INT32)labelLen);
+    }
+    sha.Finish(lHash);
+
+    // 2) extract maskedSeed and maskedDB
+    const UINT8 * maskedSeed = EM + 1;
+    const UINT8 * maskedDB   = EM + hLen + 1;
+
+    // 3) reconstruct seed
+    UINT8 seedMask[32];
+    mgf1_sha256(seedMask, hLen, maskedDB, dbLen);
+
+    UINT8 seed[32];
+    for ( INT32 i = 0; i < hLen; i++ )
+    {
+        seed[i] = maskedSeed[i] ^ seedMask[i];
+    }
+    secure_zero(seedMask, sizeof(seedMask));
+
+    // 4) reconstruct DB
+    UINT8 dbMask[256 - 32 - 1];
+    mgf1_sha256(dbMask, dbLen, seed, hLen);
+    secure_zero(seed, sizeof(seed));
+
+    UINT8 DB[256 - 32 - 1];
+    for ( INT32 i = 0; i < dbLen; i++ )
+    {
+        DB[i] = maskedDB[i] ^ dbMask[i];
+    }
+    secure_zero(dbMask, sizeof(dbMask));
+
+    // 5) check padding
+    // check coincidence of lHash
+    if ( !secure_equal(DB, lHash, hLen) )
+    {
+        ng = TRUE;
+    }
+    secure_zero(lHash, sizeof(lHash));
+
+    // search for separator 0x01
+    // scan all bytes to locate separator instead of returning early
+    INT32 oneIdx = -1;
+    BOOL lookingForOne = TRUE;
+    for ( INT32 i = hLen; i < dbLen; i++ )
+    {
+        UINT32 isZero = (DB[i] == 0x00);
+        UINT32 isOne  = (DB[i] == 0x01);
+
+        if ( isOne && lookingForOne )
+        {
+            oneIdx = i;
+            lookingForOne = FALSE; // flag at finding first 0x01
+        }
+        else if ( lookingForOne && !isZero )
+        {
+            // gabage (other than 0x00) before first 0x01
+            ng = TRUE;
+        }
+    }
+
+    if ( oneIdx < 0 )
+    {
+        ng = TRUE;
+    }
+
+    // 6) copy result
+    if ( ng )
+    {
+        secure_zero(DB, sizeof(DB));
+        return FALSE;
+    }
+
+    // copy plain text
+    INT32 plainStart = oneIdx + 1;
+    INT32 pLen = dbLen - plainStart;
+
+    memcpy(outPlain, DB + plainStart, pLen);
+    *outPlainLen = (SIZE_T)pLen;
+
+    secure_zero(DB, sizeof(DB));
+    return TRUE;
+}
+
+
+// ---------- encryption (RSAES-OAEP, SHA-256, MGF1-SHA-256) ----------
+BOOL RsaEncryptOAEP_SHA256(const CRsaKey2048Pub& pub,
+                           const UINT8 * plain, SIZE_T plainLen,
+                           UINT8 cipher[256],
+                           const UINT8 * label, SIZE_T labelLen)
+{
+    const SIZE_T modBits = pub.N.SearchMSB() + 1;
+    const SIZE_T emLen   = (modBits - 1 + 7) / 8; // 256
+
+    // 1) RSAES-OAEP-ENCODE
+    UINT8 EM[256];
+    if ( !rsa_oaep_encode_sha256(EM, emLen, plain, plainLen, label, labelLen) )
+    {
+        return FALSE;
+    }
+
+    // 2) m = OS2IP(EM)
+    CRsaBigInt2048 m;
+    OS2IP(m, EM, emLen);
+
+    // 3) c = m^e mod N
+    CRsaBigInt2048 c;
+    CRsaBigInt2048::Exp64_e32(c, m, pub.e, &pub.montN);
+
+    // 4) I2OSP
+    I2OSP(cipher, 256, c);
+
+    secure_zero(EM, sizeof(EM));
+    return TRUE;
+}
+
+// ---------- decryption (RSAES-OAEP, SHA-256, MGF1-SHA-256) ----------
+BOOL RsaDecryptOAEP_SHA256(const CRsaKey2048& key,
+                           const UINT8 cipher[256],
+                           UINT8 * outPlain, SIZE_T * outPlainLen,
+                           const UINT8 * label, SIZE_T labelLen)
+{
+    const SIZE_T modBits = key.pub.N.SearchMSB() + 1;
+    const SIZE_T emLen   = (modBits - 1 + 7) / 8; // 256
+
+    // 1) c = OS2IP(cipher)
+    CRsaBigInt2048 c;
+    OS2IP(c, cipher, 256);
+
+    // check range: c < N
+    if ( c >= key.pub.N )
+    {
+        return FALSE;
+    }
+
+    // 2) power private key CRT
+    CRsaBigInt2048 cpM;
+    CRsaBigInt2048 cqM;
+    cpM.Reduce2048to1024(c, &key.priv.montP);
+    cqM.Reduce2048to1024(c, &key.priv.montQ);
+
+    CRsaBigInt2048 sp;
+    CRsaBigInt2048 sq;
+    RSA_EXP32(sp, cpM, key.priv.dp, &key.priv.montP);
+    RSA_EXP32(sq, cqM, key.priv.dq, &key.priv.montQ);
+
+    CRsaBigInt2048 diff;
+    RSA_SUB(diff, sp, sq, key.priv.p);
+
+    CRsaBigInt2048 diffM;
+    diffM.ToMont32(diff, &key.priv.montP);
+    CRsaBigInt2048 qInvM;
+    qInvM.ToMont32(key.priv.qInv, &key.priv.montP);
+
+    CRsaBigInt2048 hM;
+    RSA_MUL32(hM, diffM, qInvM, &key.priv.montP);
+
+    CRsaBigInt2048 h;
+    hM.FromMont32(h, &key.priv.montP);
+
+    CRsaBigInt2048 qh;
+    CFeBigInt2048::Mul(qh, key.priv.q, h);
+    CRsaBigInt2048 m;
+    RSA_ADD(m, sq, qh, key.pub.N);
+
+    // 3) EM = I2OSP(m, emLen)
+    UINT8 EM[256];
+    I2OSP(EM, emLen, m);
+
+    // 4) RSAES-OAEP-DECODE
+    BOOL ok = rsa_oaep_decode_sha256(EM, emLen, outPlain, outPlainLen, label, labelLen);
+
+    secure_zero(EM, sizeof(EM));
+    return ok;
+}
+

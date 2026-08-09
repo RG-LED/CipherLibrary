@@ -53,5 +53,17 @@ BOOL RsaVerifyPSS_SHA256(const CRsaKey2048Pub& pub,
                          const UINT8 * msg, SIZE_T msgLen,
                          const UINT8 sig[256], UINT32 saltLen = 32);
 
+// 4) encryption (RSAES-OAEP, SHA-256, MGF1-SHA-256)
+BOOL RsaEncryptOAEP_SHA256(const CRsaKey2048Pub& pub,
+                           const UINT8 * plain, SIZE_T plainLen,
+                           UINT8 cipher[256],
+                           const UINT8 * label = NULL, SIZE_T labelLen = 0);
+
+// 5) decryption (RSAES-OAEP, SHA-256, MGF1-SHA-256)
+BOOL RsaDecryptOAEP_SHA256(const CRsaKey2048& key,
+                           const UINT8 cipher[256],
+                           UINT8 * outPlain, SIZE_T * outPlainLen,
+                           const UINT8 * label = NULL, SIZE_T labelLen = 0);
+
 #endif // _RSA2048_H_
 

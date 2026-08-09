@@ -212,7 +212,7 @@ static VOID addE(Point448 & out, const Point448 & p1, const Point448 & p2)
     CFe448::Sub(f, d, c);
     // 7. G = D + C
     CFe448::Add(g, d, c);
-    // 8. H = B - A (a=1 なので B - A)
+    // 8. H = B - A (since a=1)
     CFe448::Sub(h, b, a);
 
     // store result
