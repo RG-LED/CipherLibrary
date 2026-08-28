@@ -55,3 +55,5 @@ VOID CEcPoint<EcCurve::SECP256K1>::Double(CEcPoint<EcCurve::SECP256K1> & out, co
     out.z = zout;
 }
 
+template VOID CEcPoint<EcCurve::SECP256K1>::Double(CEcPoint<EcCurve::SECP256K1> & out, const CEcPoint<EcCurve::SECP256K1> & p1);
+
